@@ -1,0 +1,9 @@
+/data/external
+/data/processed
+/.venv
+/.vscode
+/Makefile.venv
+/models
+__pycache__
+*.log
+.DS_Store
