@@ -7,45 +7,27 @@ from torchmetrics.classification import F1Score
 class HyperSpectralCnn(L.LightningModule):
     def __init__(self, input_channels, num_classes, lr=1e-3, dropout=0.5):
         super().__init__()
+        self.num_classes = num_classes
         self.lr = lr
         self.f1 = F1Score(task="multiclass", num_classes=num_classes, average="macro")
-        self.feature_extractor = nn.Sequential(
-            # Block 1
-            nn.Conv2d(input_channels, 512, kernel_size=3, padding="same"),
+        self.net = nn.Sequential(
+            nn.Conv2d(input_channels, 100, kernel_size=4),
+            nn.BatchNorm2d(100),
             nn.ReLU(inplace=True),
-            nn.Conv2d(512, 256, kernel_size=3, padding="same"),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Conv2d(100, 200, kernel_size=2),
             nn.ReLU(inplace=True),
-            # Block 2
-            nn.Conv2d(256, 256, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 128, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-            # Block 3
-            nn.Conv2d(128, 128, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 64, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-            # Block 4
-            nn.Conv2d(64, 64, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 32, kernel_size=3, padding="same"),
-            nn.ReLU(inplace=True),
-        )
-        self.adapter = nn.Flatten()
-        self.classifier = nn.Sequential(
-            nn.Linear(5 * 5 * 32, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(256, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(256, num_classes),
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(200),
+            nn.Conv2d(200, 500, kernel_size=1),
+            nn.Sigmoid(),
+            nn.Conv2d(500, num_classes, kernel_size=1),
+            nn.BatchNorm2d(num_classes),
         )
 
     def forward(self, x):
-        x = self.feature_extractor(x)
-        x = self.adapter(x)
-        x = self.classifier(x)
+        x = self.net(x)
+        x = x.reshape(x.shape[0], self.num_classes)
         return x
 
     def training_step(self, batch, batch_idx):

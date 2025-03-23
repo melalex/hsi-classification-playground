@@ -28,8 +28,9 @@ def extract_patches(image, labels, patch_size=5, remove_background=False):
 
 
 def scale_patched(x):
+    _, h, w, _ = x.shape
     scaler = StandardScaler()
-    x = x.reshape(-1, x.shape[-1])  # Flatten for normalization
+    x = x.reshape(-1, x.shape[-1])
     x = scaler.fit_transform(x)
-    x = x.reshape(-1, 5, 5, x.shape[-1])  # Reshape back
+    x = x.reshape(-1, h, w, x.shape[-1])
     return scaler, x
