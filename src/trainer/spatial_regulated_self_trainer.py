@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+import pickle
+from typing import Optional
 import numpy as np
 import torch
 import torch.utils.data as data
@@ -8,8 +10,9 @@ from torch import optim
 from collections import defaultdict
 from sklearn.cluster import KMeans
 from torchmetrics import Accuracy, CohenKappa, F1Score
+from src.model.fully_convolutional_lenet import FullyConvolutionalLeNet
 from src.util.list_ext import group_indices
-from src.util.patches import extract_label_patches, slice_and_patch
+from src.util.patches import extract_label_patches, scale_patched, slice_and_patch
 from src.util.progress_bar import create_progress_bar
 
 
@@ -21,24 +24,68 @@ class SpatialRegulatedSelfTrainerArgs:
     over_cluster_count: int
     over_cluster_count_decay: float
     loss_fun: nn.Module = nn.CrossEntropyLoss()
+    cnn_train_epochs: int = 12
+    cnn_train_batch_size: int = 34
+    record_by_step_results: bool = True
     num_epochs: int = 12
     splits: int = 4
     patch_size: int = 9
     init_patch_size: int = 5
     semantic_threshold: float = 0.5
     spatial_threshold: int = 8
-    spatial_constraint_weights: list[float] = field(default_factory=lambda _: [1, 0.5])
+    spatial_constraint_weights: list[float] = field(default_factory=lambda: [1, 0.5])
+
+
+@dataclass
+class SpatialRegulatedSelfTrainingMetrics:
+    loss: Optional[float] = None
+    overall_accuracy: Optional[float] = None
+    kappa_score: Optional[float] = None
+    f1_score: Optional[float] = None
+
+
+@dataclass
+class StepResults:
+    extracted_features: list[np.array]
+    clustering_result: list[np.array]
+    semantic_constraint: list[np.array]
+    merged_semantic_constraint: np.array
+    spatial_constraint_result: np.array
+
+
+@dataclass
+class HistoryEntry:
+    metrics: Optional[SpatialRegulatedSelfTrainingMetrics]
+    by_step_results: Optional[StepResults]
 
 
 class SpatialRegulatedSelfTrainer:
+    history: list[HistoryEntry]
 
-    def __init__(self, args: SpatialRegulatedSelfTrainerArgs, device):
+    def __init__(self, args: SpatialRegulatedSelfTrainerArgs, lr, device):
         self.args = args
-        self.cluster_counts = np.power(
-            args.over_cluster_count,
-            np.arange(args.num_epochs + 1, 0, -1) / args.over_cluster_count_decay,
+        # self.cluster_sizes = args.over_cluster_count * np.exp(
+        #     np.arange(args.num_epochs, 0, -1) * args.over_cluster_count_decay,
+        # ).astype(int)
+        self.cluster_sizes = np.array(
+            [
+                18248,
+                16730.17,
+                15212.33,
+                13694.50,
+                12176.67,
+                10658.83,
+                9141.00,
+                7623.17,
+                6105.33,
+                4587.50,
+                3069.67,
+                1551.83,
+                34.00,
+            ]
         ).astype(int)
-        self.pred_attempts = []
+        self.init_cluster_size = self.cluster_sizes[0]
+        self.cluster_sizes = self.cluster_sizes[1:]
         self.device = device
         self.history = []
         self.f1 = F1Score(
@@ -46,78 +93,151 @@ class SpatialRegulatedSelfTrainer:
         )
         self.accuracy = Accuracy(task="multiclass", num_classes=args.num_classes)
         self.kappa = CohenKappa(task="multiclass", num_classes=args.num_classes)
+        self.models_arr = [
+            FullyConvolutionalLeNet(50, 17).to(device),
+            FullyConvolutionalLeNet(50, 17).to(device),
+            FullyConvolutionalLeNet(50, 17).to(device),
+            FullyConvolutionalLeNet(50, 17).to(device),
+        ]
+        self.optimizers_arr = [
+            optim.Adam(self.models_arr[0].parameters(), lr=lr),
+            optim.Adam(self.models_arr[1].parameters(), lr=lr),
+            optim.Adam(self.models_arr[2].parameters(), lr=lr),
+            optim.Adam(self.models_arr[3].parameters(), lr=lr),
+        ]
 
     def train(self, image, initial_labels, eval_labels=None):
         original_shape = initial_labels.shape
         init_patches, labels = self.init_slice_and_patch(image, initial_labels)
+        metrics = None
+        by_step_results = None
 
-        with create_progress_bar()(total=4) as pb:
+        with create_progress_bar()(total=5) as pb:
             pb.set_description("[INIT] Extract initial features")
             x = self.extract_init_features(init_patches)
             pb.update()
             pb.set_description(
-                f"[INIT] Clustering features over {self.cluster_counts[0]} clusters"
+                f"[INIT] Clustering features over {self.init_cluster_size} clusters"
             )
-            k = self.over_cluster(self.cluster_counts[0], x)
+            k = self.init_over_cluster(x)
             pb.update()
             pb.set_description("[INIT] Introducing semantic constraint")
-            c = self.introduce_semantic_constraint_and_merge(k, labels)
+            c = self.all_introduce_semantic_constraint(k, labels)
+            pb.update()
+            pb.set_description("[INIT] Merge clustering results")
+            c_m = self.merge_clustering_results(c)
             pb.update()
             pb.set_description("[INIT] Introducing spatial constraint")
-            y = self.introduce_spatial_constraint(c, original_shape)
+            y = self.introduce_spatial_constraint(c_m, original_shape)
             pb.update()
 
-        self.pred_attempts.append(y)
+        if eval_labels is not None:
+            metrics_dict = self.eval_y(y, eval_labels)
+            metrics = SpatialRegulatedSelfTrainingMetrics(
+                overall_accuracy=metrics_dict["val_f1"],
+                kappa_score=metrics_dict["val_accuracy"],
+                f1_score=metrics_dict["val_kappa"],
+            )
 
-        z = self.slice_and_patch(image)
+        if self.args.record_by_step_results:
+            by_step_results = StepResults(
+                extracted_features=x,
+                clustering_result=k,
+                semantic_constraint=c,
+                merged_semantic_constraint=c_m,
+                spatial_constraint_result=y,
+            )
 
-        with create_progress_bar()(range(len(self.cluster_counts) - 1)) as pb:
-            for cluster_size in self.cluster_counts[1:]:
-                x, loss = self.extract_features(z, y)
+        self.append_history(metrics, by_step_results)
+
+        z = init_patches
+
+        with create_progress_bar()(range(len(self.cluster_sizes))) as pb:
+            for cluster_size in self.cluster_sizes:
+                loss = self.train_feature_extractor(z, y)
+                x = self.extract_features(z)
                 k = self.over_cluster(cluster_size, x)
-                c = self.introduce_semantic_constraint_and_merge(k, labels)
-                y = self.introduce_spatial_constraint(c, original_shape)
-
-                self.pred_attempts.append(y)
+                c = self.all_introduce_semantic_constraint(k, labels)
+                c_m = self.merge_clustering_results(c)
+                y = self.introduce_spatial_constraint(c_m, original_shape)
 
                 progress = {
                     "loss": loss,
                 }
 
                 if eval_labels is not None:
-                    metrics = self.eval_y(y, eval_labels)
-                    progress = progress | metrics
+                    metrics_dict = self.eval_y(y, eval_labels)
+                    progress = progress | metrics_dict
+                    metrics = SpatialRegulatedSelfTrainingMetrics(
+                        loss=loss,
+                        overall_accuracy=metrics_dict["val_f1"],
+                        kappa_score=metrics_dict["val_accuracy"],
+                        f1_score=metrics_dict["val_kappa"],
+                    )
+                else:
+                    metrics = SpatialRegulatedSelfTrainingMetrics(loss=loss)
 
-                self.history.append(progress)
+                if self.args.record_by_step_results:
+                    by_step_results = StepResults(
+                        extracted_features=x,
+                        clustering_result=k,
+                        semantic_constraint=c,
+                        merged_semantic_constraint=c_m,
+                        spatial_constraint_result=y,
+                    )
+
+                self.append_history(metrics, by_step_results)
 
                 pb.set_postfix(**progress)
                 pb.update()
 
         return y
 
-    def extract_features(self, z, y):
-        y_true = torch.tensor(
+    def append_history(
+        self,
+        metrics: Optional[SpatialRegulatedSelfTrainingMetrics],
+        by_step_results: Optional[StepResults],
+    ):
+        self.history.append(HistoryEntry(metrics, by_step_results))
+
+    def train_feature_extractor(self, z, y):
+        return 0
+        y_tensor = torch.tensor(
             extract_label_patches(y), device=self.device, dtype=torch.float32
         )
-        x = []
         train_total_loss = 0
 
-        for z_i in z:
-            x_i = self.args.model(z_i)
-            x.append(x_i.detach().cpu().numpy())
+        for _ in range(self.args.cnn_train_epochs):
+            for i, z_i in enumerate(z):
+                self.models_arr[i].train()
+                train_loader = data.DataLoader(
+                    data.TensorDataset(z_i, y_tensor),
+                    batch_size=self.args.cnn_train_batch_size,
+                    shuffle=True,
+                )
 
-            loss = self.args.loss_fun(x_i, y_true)
+                for x, y_true in train_loader:
+                    self.optimizers_arr[i].zero_grad()
 
-            train_total_loss += loss.item()
+                    y_pred = self.models_arr[i](x)
 
-            self.args.optimizer.zero_grad()
-            loss.backward()
+                    loss = self.args.loss_fun(y_pred, y_true)
+                    loss.backward()
+                    self.optimizers_arr[i].step()
 
-            self.args.optimizer.step()
+                    train_total_loss += loss.item()
 
-        loss = train_total_loss / len(z)
+        return train_total_loss / (len(z) * self.args.cnn_train_epochs)
 
-        return x, loss
+    def extract_features(self, z):
+        return self.extract_init_features(z)
+        result = []
+        for i, z_i in enumerate(z):
+            self.models_arr[i].eval()
+            x_i = self.models_arr[i](z_i)
+            result.append(x_i.detach().cpu().numpy())
+
+        return result
 
     def init_slice_and_patch(self, image, initial_labels):
         init_patches = slice_and_patch(
@@ -136,9 +256,11 @@ class SpatialRegulatedSelfTrainer:
         )
 
         return [
-            torch.tensor(patches[i], device=self.device, dtype=torch.float32).permute(
-                0, 3, 1, 2
-            )
+            torch.tensor(
+                scale_patched(patches[i])[1],
+                #  device=self.device,
+                dtype=torch.float32,
+            ).permute(0, 3, 1, 2)
             for i in range(patches.shape[0])
         ]
 
@@ -159,6 +281,23 @@ class SpatialRegulatedSelfTrainer:
             for i in range(patches.shape[0])
         ]
 
+    def init_over_cluster(self, features):
+        return [
+            np.load(
+                f"/Users/alexandermelashchenko/Workspace/spatial-regulated-self-training/tmp/{i}.npy"
+            )
+            for i in range(self.args.splits)
+        ]
+        k = self.over_cluster(self.init_cluster_size, features)
+
+        for i, k_i in enumerate(k):
+            np.save(
+                f"/Users/alexandermelashchenko/Workspace/spatial-regulated-self-training/tmp/single-{i}",
+                k_i,
+            )
+
+        return k
+
     def over_cluster(self, cluster_size, features):
         return [
             KMeans(n_clusters=cluster_size).fit_predict(features[i])
@@ -168,6 +307,9 @@ class SpatialRegulatedSelfTrainer:
     def introduce_semantic_constraint_and_merge(self, clusters, labels):
         c = [self.introduce_semantic_constraint(it, labels) for it in clusters]
         return self.merge_clustering_results(c)
+
+    def all_introduce_semantic_constraint(self, clusters, labels):
+        return [self.introduce_semantic_constraint(it, labels) for it in clusters]
 
     def introduce_semantic_constraint(self, cluster, labels):
         cluster_to_index = group_indices(cluster)
@@ -216,12 +358,6 @@ class SpatialRegulatedSelfTrainer:
         height, width = original_shape
         y_matrix = c.reshape(original_shape)
 
-        def get_from_y(i, j):
-            if i < 0 or i >= height or j < 0 or j >= width:
-                return 0
-            else:
-                return y_matrix[i][j]
-
         result = np.zeros(original_shape)
 
         for i in range(height):
@@ -229,30 +365,42 @@ class SpatialRegulatedSelfTrainer:
                 if y_matrix[i][j] > 0:
                     result[i][j] = y_matrix[i][j]
                 else:
-                    labels_count = defaultdict(int)
-
-                    for radius, weight in enumerate(
-                        self.args.spatial_constraint_weights
-                    ):
-                        for k in range(j - radius, j + radius + 1):
-                            up = get_from_y(i, k - radius)
-                            if up > 0:
-                                labels_count[up] = labels_count[up] + weight
-                            down = get_from_y(i, k + radius)
-                            if down > 0:
-                                labels_count[down] = labels_count[down] + weight
-
-                        for k in range(i - radius + 1, i + radius):
-                            left = get_from_y(i - radius, k)
-                            if left > 0:
-                                labels_count[left] = labels_count[left] + weight
-                            right = get_from_y(i + radius, k)
-                            if down > 0:
-                                labels_count[right] = labels_count[right] + weight
-
-                    pseudo_label = max(labels_count, key=labels_count.get, default=None)
-
-                    if labels_count[pseudo_label] > self.args.spatial_threshold:
-                        result[i][j] = pseudo_label
+                    result[i][j] = self.calculate_pseudo_label(i, j, y_matrix)
 
         return result
+
+    def calculate_pseudo_label(self, i, j, y):
+        height, width = y.shape
+
+        def get_from_y(i, j):
+            if i < 0 or i >= height or j < 0 or j >= width:
+                return 0
+            else:
+                return y[i][j]
+
+        labels_count = defaultdict(int)
+
+        for r, weight in enumerate(self.args.spatial_constraint_weights):
+            radius = r + 1
+            for k in range(j - radius, j + radius + 1):
+                up = get_from_y(i - radius, k)
+                if up > 0:
+                    labels_count[up] += weight
+                down = get_from_y(i + radius, k)
+                if down > 0:
+                    labels_count[down] += weight
+
+            for k in range(i - radius + 1, i + radius):
+                left = get_from_y(k, j - radius)
+                if left > 0:
+                    labels_count[left] += weight
+                right = get_from_y(k, j + radius)
+                if down > 0:
+                    labels_count[right] += weight
+
+        pseudo_label = max(labels_count, key=labels_count.get, default=None)
+
+        if labels_count[pseudo_label] >= self.args.spatial_threshold:
+            return pseudo_label
+        else:
+            return 0
