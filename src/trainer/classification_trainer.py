@@ -25,6 +25,7 @@ class ClassificationTrainer:
         epoch_loss = 0
 
         for _ in range(self.num_epochs):
+            model.train()
             for x, y_true in train_loader:
                 optimizer.zero_grad()
 

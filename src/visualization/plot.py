@@ -156,7 +156,7 @@ def plot_extracted_features_by_epoch(
             np.argmax(it, axis=1).reshape(h, w)
             for it in h_e.step_snapshots.extracted_features
         ]
-        for h_e in feedback
+        for h_e in feedback[1:]
     ]
 
     return plot_by_split_progress(extracted_features)

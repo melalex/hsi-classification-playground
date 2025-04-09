@@ -8,4 +8,5 @@ __pycache__
 *.log
 .DS_Store
 /lightning_logs
-/tmp
+/cache
+/reports/grid_search

@@ -11,7 +11,7 @@ def extract_patches(image, labels, patch_size=5):
 
 
 def extract_label_patches(labels):
-    return labels.reshape(-1)
+    return labels.ravel()
 
 
 def extract_image_patches(image, patch_size=5):
@@ -32,7 +32,7 @@ def extract_image_patches(image, patch_size=5):
 
 def slice_and_patch(image, patch_size=5, splits=4):
     splitted = np.array_split(image, splits, axis=2)
-    return np.array([extract_image_patches(it, patch_size) for it in splitted])
+    return [extract_image_patches(it, patch_size) for it in splitted]
 
 
 def scale_patched(x):

@@ -5,16 +5,22 @@ import numpy as np
 
 from torch import nn
 from abc import ABC
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 from sklearn.cluster import KMeans
 from torchmetrics import Accuracy, CohenKappa, F1Score
 from torch.utils import data
 
+from src.definitions import CACHE_FOLDER
 from src.trainer.classification_trainer import ClassificationTrainer
 from src.util.list_ext import group_indices
-from src.util.patches import extract_label_patches, slice_and_patch
+from src.util.patches import (
+    extract_image_patches,
+    extract_label_patches,
+    scale_patched,
+    slice_and_patch,
+)
 from src.util.progress_bar import create_progress_bar
 
 
@@ -50,8 +56,22 @@ class ClassificationFeatureExtractor(FeatureExtractor):
         )
 
         return self.trainer.fit(self.model, train_loader)
+        # acc_loss = 0
+
+        # for z_i in z:
+        #     train_loader = data.DataLoader(
+        #         dataset=data.TensorDataset(z_i, y),
+        #         batch_size=self.batch_size,
+        #         shuffle=True,
+        #         generator=self.generator,
+        #     )
+
+        #     acc_loss += self.trainer.fit(self.model, train_loader)
+
+        # return acc_loss / len(z)
 
     def predict(self, z: list[torch.Tensor]) -> list[torch.Tensor]:
+        self.model.eval()
         return [self.model(z_i).detach().cpu().numpy() for z_i in z]
 
 
@@ -148,59 +168,12 @@ class SpatialRegulatedSelfTrainingPipeline:
         )
         self.kappa = CohenKappa(task="multiclass", num_classes=args.num_classes)
 
-    def fit(self, image, initial_labels, eval_labels=None):
-        original_shape = initial_labels.shape
-
+    def fit(self, image, initial_labels, eval_y=None):
         scaler, image = self.scale_image(image)
-        y = self.init_fit(image, initial_labels, eval_labels)
-        z = self.slice_and_patch(image)
-
-        with create_progress_bar()(range(len(self.cluster_sizes) - 1)) as pb:
-            for cluster_size in self.cluster_sizes[1:]:
-                y_tensor = torch.tensor(
-                    extract_label_patches(y), device=self.device, dtype=torch.long
-                )
-                loss = self.feature_extractor.fit(z, y_tensor)
-                x = self.feature_extractor.predict(z)
-                k = self.over_cluster(cluster_size, x)
-                c = self.all_introduce_semantic_constraint(k, np.ravel(y))
-                c_m = self.merge_clustering_results(c)
-                y = self.introduce_spatial_constraint(c_m, original_shape)
-
-                if eval_labels is not None:
-                    metrics = self.eval_y(y, eval_labels)
-                    progress = {
-                        "val_f1": metrics.f1_score,
-                        "val_average_accuracy": metrics.average_accuracy,
-                        "val_overall_accuracy": metrics.overall_accuracy,
-                        "val_kappa": metrics.kappa_score,
-                    }
-                else:
-                    metrics = None
-                    progress = {}
-
-                step_snapshot = StepSnapshot(
-                    extracted_features=x,
-                    clustering_result=k,
-                    semantic_constraint=c,
-                    merged_semantic_constraint=c_m,
-                    spatial_constraint_result=y,
-                )
-
-                self.record_history(loss, metrics, step_snapshot)
-
-                pb.set_postfix(**progress)
-                pb.update()
+        init_y = self.init_fit(image, initial_labels, eval_y)
+        y = self.iter_fit(image, init_y, eval_y)
 
         return scaler, y
-
-    def scale_image(self, image):
-        h, w, c = image.shape
-        img_reshaped = image.reshape(-1, c)
-        scaler = StandardScaler()
-        img_scaled = scaler.fit_transform(img_reshaped)
-
-        return scaler, img_scaled.reshape(h, w, c)
 
     def init_fit(self, image, initial_labels, eval_labels=None):
         original_shape = initial_labels.shape
@@ -238,10 +211,60 @@ class SpatialRegulatedSelfTrainingPipeline:
 
         return y
 
+    def iter_fit(self, image, init_y, eval_y):
+        original_shape = init_y.shape
+        z = self.slice_and_patch(image)
+        y = init_y
+
+        with create_progress_bar()(range(len(self.cluster_sizes) - 1)) as pb:
+            for cluster_size in self.cluster_sizes[1:]:
+                y = extract_label_patches(y)
+                y_tensor = torch.tensor(y, device=self.device, dtype=torch.long)
+                loss = self.feature_extractor.fit(z, y_tensor)
+                x = self.feature_extractor.predict(z)
+                k = self.over_cluster(cluster_size, x)
+                c = self.all_introduce_semantic_constraint(k, y)
+                c_m = self.merge_clustering_results(c)
+                y = self.introduce_spatial_constraint(c_m, original_shape)
+
+                if eval_y is not None:
+                    metrics = self.eval_y(y, eval_y)
+                    progress = {
+                        "val_f1": metrics.f1_score,
+                        "val_average_accuracy": metrics.average_accuracy,
+                        "val_overall_accuracy": metrics.overall_accuracy,
+                        "val_kappa": metrics.kappa_score,
+                    }
+                else:
+                    metrics = None
+                    progress = {}
+
+                step_snapshot = StepSnapshot(
+                    extracted_features=x,
+                    clustering_result=k,
+                    semantic_constraint=c,
+                    merged_semantic_constraint=c_m,
+                    spatial_constraint_result=y,
+                )
+
+                self.record_history(loss, metrics, step_snapshot)
+
+                pb.set_postfix(**progress)
+                pb.update()
+
+        return y
+
+    def scale_image(self, image):
+        h, w, c = image.shape
+        img_reshaped = image.reshape(-1, c)
+        scaler = StandardScaler()
+        img_scaled = scaler.fit_transform(img_reshaped)
+
+        return scaler, img_scaled.reshape(h, w, c)
+
     def extract_init_features(self, patches):
         return [
-            patches[i, :, :, :].reshape(patches.shape[1], -1)
-            for i in range(patches.shape[0])
+            patches[i].reshape(patches[i].shape[0], -1) for i in range(len(patches))
         ]
 
     def init_slice_and_patch(self, image, initial_labels):
@@ -254,19 +277,21 @@ class SpatialRegulatedSelfTrainingPipeline:
         return init_patches, labels
 
     def init_over_cluster(self, features):
-        # return [
-        #     np.load(
-        #         f"/Users/alexandermelashchenko/Workspace/spatial-regulated-self-training/tmp/{i}.npy"
-        #     )
-        #     for i in range(self.splits)
-        # ]
+        cache_loc = (
+            CACHE_FOLDER
+            / "init-clustering"
+            / f"{self.cluster_sizes[0]}-{self.splits}-{len(self.cluster_sizes)}"
+        )
+
+        if cache_loc.exists():
+            return [np.load(cache_loc / f"{i}.npy") for i in range(self.splits)]
+
         k = self.over_cluster(self.cluster_sizes[0], features)
 
-        # for i, k_i in enumerate(k):
-        #     np.save(
-        #         f"/Users/alexandermelashchenko/Workspace/spatial-regulated-self-training/tmp/single-{i}",
-        #         k_i,
-        #     )
+        cache_loc.mkdir(exist_ok=True, parents=True)
+
+        for i, k_i in enumerate(k):
+            np.save(cache_loc / f"{i}", k_i)
 
         return k
 
@@ -305,7 +330,7 @@ class SpatialRegulatedSelfTrainingPipeline:
                 device=self.device,
                 dtype=torch.float32,
             ).permute(0, 3, 1, 2)
-            for i in range(patches.shape[0])
+            for i in range(len(patches))
         ]
 
     def over_cluster(self, cluster_size, features):
@@ -326,8 +351,7 @@ class SpatialRegulatedSelfTrainingPipeline:
 
         cluster_avg = sum(cluster_sum.values()) / len(cluster_to_index)
 
-        purity_max_f = defaultdict(int)
-        purity_max = defaultdict(int)
+        purity_max = {}
 
         for f in range(1, self.num_classes):
             for cluster_id, elements in cluster_to_index.items():
@@ -336,18 +360,14 @@ class SpatialRegulatedSelfTrainingPipeline:
                     s_pt = sum([1 for it in elements if labels[it] == f])
                     pure_f = s_pt / s_i
 
-                    if (
-                        pure_f > self.semantic_threshold
-                        and pure_f > purity_max[cluster_id]
-                    ):
-                        purity_max_f[cluster_id] = f
-                        purity_max[cluster_id] = pure_f
+                    if pure_f > self.semantic_threshold:
+                        purity_max[cluster_id] = f
 
         result = np.zeros(len(labels))
 
         for cluster_id in cluster_to_index:
-            if cluster_id in purity_max_f:
-                f = purity_max_f[cluster_id]
+            if cluster_id in purity_max:
+                f = purity_max[cluster_id]
                 for elem in cluster_to_index[cluster_id]:
                     result[elem] = f
 
@@ -401,12 +421,12 @@ class SpatialRegulatedSelfTrainingPipeline:
                 if left > 0:
                     labels_count[left] += weight
                 right = get_from_y(k, j + radius)
-                if down > 0:
+                if right > 0:
                     labels_count[right] += weight
 
         pseudo_label = max(labels_count, key=labels_count.get, default=None)
 
-        if labels_count[pseudo_label] >= self.spatial_threshold:
+        if labels_count[pseudo_label] > self.spatial_threshold:
             return pseudo_label
         else:
             return 0
