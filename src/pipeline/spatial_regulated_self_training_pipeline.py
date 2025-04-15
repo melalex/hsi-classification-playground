@@ -33,7 +33,7 @@ class FeatureExtractor(ABC):
         pass
 
 
-class ClassificationFeatureExtractor(FeatureExtractor):
+class CnnFeatureExtractor(FeatureExtractor):
 
     def __init__(
         self,
@@ -56,23 +56,57 @@ class ClassificationFeatureExtractor(FeatureExtractor):
         )
 
         return self.trainer.fit(self.model, train_loader)
-        # acc_loss = 0
-
-        # for z_i in z:
-        #     train_loader = data.DataLoader(
-        #         dataset=data.TensorDataset(z_i, y),
-        #         batch_size=self.batch_size,
-        #         shuffle=True,
-        #         generator=self.generator,
-        #     )
-
-        #     acc_loss += self.trainer.fit(self.model, train_loader)
-
-        # return acc_loss / len(z)
 
     def predict(self, z: list[torch.Tensor]) -> list[torch.Tensor]:
         self.model.eval()
         return [self.model(z_i).detach().cpu().numpy() for z_i in z]
+
+
+class MultipleCnnFeatureExtractor(FeatureExtractor):
+
+    def __init__(
+        self,
+        models: list[nn.Module],
+        trainer: ClassificationTrainer,
+        generator: torch.Generator,
+        batch_size: int = 64,
+    ):
+        self.models = models
+        self.trainer = trainer
+        self.batch_size = batch_size
+        self.generator = generator
+
+    def fit(self, z: list[torch.Tensor], y: torch.Tensor) -> float:
+        acc_loss = 0
+
+        for i, z_i in enumerate(z):
+            train_loader = data.DataLoader(
+                dataset=data.TensorDataset(z_i, y),
+                batch_size=self.batch_size,
+                shuffle=True,
+                generator=self.generator,
+            )
+
+            acc_loss += self.trainer.fit(self.models[i], train_loader)
+
+        return acc_loss / len(z)
+
+    def predict(self, z: list[torch.Tensor]) -> list[torch.Tensor]:
+        def get_model(i):
+            model = self.models[i]
+            model.eval()
+            return model
+
+        return [get_model(i)(z_i).detach().cpu().numpy() for i, z_i in enumerate(z)]
+
+
+class FlatteningFeatureExtractor(FeatureExtractor):
+
+    def fit(self, z: list[torch.Tensor], y: torch.Tensor) -> float:
+        return 0
+
+    def predict(self, z: list[torch.Tensor]) -> list[torch.Tensor]:
+        return [z_i.reshape(z_i.shape[0], -1).detach().cpu().numpy() for z_i in z]
 
 
 class Clustering(ABC):
@@ -87,7 +121,9 @@ class KMeansClustering(Clustering):
         self.seed = seed
 
     def cluster(self, num_clusters, x):
-        return KMeans(n_clusters=num_clusters, random_state=self.seed).fit_predict(x)
+        return KMeans(
+            n_clusters=num_clusters, n_init=25, random_state=self.seed
+        ).fit_predict(x)
 
 
 @dataclass

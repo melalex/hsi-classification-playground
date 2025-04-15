@@ -12,6 +12,7 @@ def plot_segmentation_comparison(
     title1="Ground Truth",
     title2="Predicted",
 ):
+    num_classes = len(np.unique(ground_truth))
     # Define color map (seaborn deep to get distinguishable colors)
     cmap = plt.colormaps.get_cmap("jet")
 
@@ -19,12 +20,12 @@ def plot_segmentation_comparison(
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     # Plot Ground Truth
-    axes[0].imshow(ground_truth, cmap=cmap)
+    axes[0].imshow(ground_truth, cmap=cmap, vmin=0, vmax=num_classes)
     axes[0].set_title(title1)
     axes[0].axis("off")
 
     # Plot Predicted Labels
-    axes[1].imshow(predicted_labels, cmap=cmap)
+    axes[1].imshow(predicted_labels, cmap=cmap, vmin=0, vmax=num_classes)
     axes[1].set_title(title2)
     axes[1].axis("off")
 
@@ -83,11 +84,11 @@ def plot_kappa(feedback: list[HistoryEntry], size=(12, 6)):
     plt.show()
 
 
-def plot_progress_animation(predictions) -> animation.FuncAnimation:
+def plot_progress_animation(predictions, num_classes) -> animation.FuncAnimation:
     num_frames = len(predictions)
     fig, ax = plt.subplots()
     cmap = plt.colormaps.get_cmap("jet")
-    img = ax.imshow(predictions[0], cmap=cmap)
+    img = ax.imshow(predictions[0], cmap=cmap, vmin=0, vmax=num_classes)
 
     def update(frame):
         img.set_array(predictions[frame])
@@ -114,7 +115,7 @@ def plot_k_values(k_values, k_star, num_classes, size=(8, 5)):
     plt.show()
 
 
-def plot_by_split_progress(splits) -> animation.FuncAnimation:
+def plot_by_split_progress(splits, num_classes) -> animation.FuncAnimation:
     num_frames = len(splits)
     num_splits = len(splits[0])
     cmap = plt.colormaps.get_cmap("jet")
@@ -123,12 +124,14 @@ def plot_by_split_progress(splits) -> animation.FuncAnimation:
     images = []
 
     if num_splits == 1:
-        images.append(axes.imshow(splits[0][0], cmap=cmap))
+        images.append(axes.imshow(splits[0][0], cmap=cmap, vmin=0, vmax=num_classes))
         axes.set_title(f"#{0}.{0}")
         axes.axis("off")
     else:
         for i in range(num_splits):
-            images.append(axes[i].imshow(splits[0][i], cmap=cmap))
+            images.append(
+                axes[i].imshow(splits[0][i], cmap=cmap, vmin=0, vmax=num_classes)
+            )
             axes[i].set_title(f"#{0}.{i}")
             axes[i].axis("off")
 
@@ -149,7 +152,7 @@ def plot_by_split_progress(splits) -> animation.FuncAnimation:
 
 
 def plot_extracted_features_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int
+    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
 ) -> animation.FuncAnimation:
     extracted_features = [
         [
@@ -159,11 +162,11 @@ def plot_extracted_features_by_epoch(
         for h_e in feedback[1:]
     ]
 
-    return plot_by_split_progress(extracted_features)
+    return plot_by_split_progress(extracted_features, num_classes)
 
 
 def plot_clusters_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int
+    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
 ) -> animation.FuncAnimation:
     semantic_constraint = [
         [it.reshape(h, w) for it in h_e.step_snapshots.clustering_result]
@@ -174,27 +177,29 @@ def plot_clusters_by_epoch(
 
 
 def plot_semantic_constraints_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int
+    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
 ) -> animation.FuncAnimation:
     semantic_constraint = [
         [it.reshape(h, w) for it in h_e.step_snapshots.semantic_constraint]
         for h_e in feedback
     ]
 
-    return plot_by_split_progress(semantic_constraint)
+    return plot_by_split_progress(semantic_constraint, num_classes)
 
 
 def plot_merged_semantic_constraint_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int
+    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
 ) -> animation.FuncAnimation:
     prediction_attempts = [
         it.step_snapshots.merged_semantic_constraint.reshape(h, w) for it in feedback
     ]
-    return plot_progress_animation(prediction_attempts)
+    return plot_progress_animation(prediction_attempts, num_classes)
 
 
-def plot_predictions_by_epoch(feedback: list[HistoryEntry]) -> animation.FuncAnimation:
+def plot_predictions_by_epoch(
+    feedback: list[HistoryEntry], num_classes: int
+) -> animation.FuncAnimation:
     prediction_attempts = [
         it.step_snapshots.spatial_constraint_result for it in feedback
     ]
-    return plot_progress_animation(prediction_attempts)
+    return plot_progress_animation(prediction_attempts, num_classes)

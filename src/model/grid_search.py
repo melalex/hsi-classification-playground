@@ -39,15 +39,19 @@ class GridSearch[M]:
         self.optimize_metric = optimize_metric
         self.log_file = log_file
 
-    def run(self) -> tuple[M, dict[str, Sequence[float]], float]:
+    def run(self, start_from=0) -> tuple[M, dict[str, Sequence[float]], float]:
         best_score = {self.optimize_metric: -np.inf}
         best_params = None
         best_model = None
         param_grid = self.adapter.params_grid()
         keys = list(param_grid.keys())
         params_list = list(product(*param_grid.values()))
+        init_params_list_len = len(params_list)
+        params_list = params_list[start_from:]
 
-        with create_progress_bar()(total=len(params_list)) as pb:
+        with create_progress_bar()(
+            initial=start_from, total=init_params_list_len
+        ) as pb:
             for values in params_list:
                 params = dict(zip(keys, values))
                 model = self.adapter.init_model(params)
