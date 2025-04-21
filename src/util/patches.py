@@ -19,8 +19,7 @@ def extract_image_patches(image, patch_size=5):
     padded_image = pad_image(image, margin)
 
     x = []
-    h = image.shape[0]
-    w = image.shape[1]
+    h, w, _ = image.shape
 
     for i in range(h):
         for j in range(w):

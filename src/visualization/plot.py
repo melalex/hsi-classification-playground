@@ -3,7 +3,9 @@ import seaborn as sns
 
 from matplotlib import animation, pyplot as plt
 
-from src.pipeline.spatial_regulated_self_training_pipeline import HistoryEntry
+from src.pipeline.spatial_regulated_self_training_pipeline import (
+    SpatialRegulatedSelfTrainingHistoryEntry,
+)
 
 
 def plot_segmentation_comparison(
@@ -34,7 +36,7 @@ def plot_segmentation_comparison(
     plt.show()
 
 
-def plot_loss(feedback: list[HistoryEntry], size=(12, 6)):
+def plot_loss(feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], size=(12, 6)):
     plt.figure(figsize=size)
     plt.plot([it.feature_extractor_loss for it in feedback], label="loss")
     plt.title("Loss")
@@ -44,7 +46,9 @@ def plot_loss(feedback: list[HistoryEntry], size=(12, 6)):
     plt.show()
 
 
-def plot_f1_score(feedback: list[HistoryEntry], size=(12, 6)):
+def plot_f1_score(
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], size=(12, 6)
+):
     plt.figure(figsize=size)
     plt.plot([it.metrics.f1_score for it in feedback], label="F1-score")
     plt.title("Eval F1-score")
@@ -54,7 +58,9 @@ def plot_f1_score(feedback: list[HistoryEntry], size=(12, 6)):
     plt.show()
 
 
-def plot_overall_accuracy(feedback: list[HistoryEntry], size=(12, 6)):
+def plot_overall_accuracy(
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], size=(12, 6)
+):
     plt.figure(figsize=size)
     plt.plot([it.metrics.overall_accuracy for it in feedback], label="Accuracy")
     plt.title("Eval Overall Accuracy")
@@ -64,7 +70,9 @@ def plot_overall_accuracy(feedback: list[HistoryEntry], size=(12, 6)):
     plt.show()
 
 
-def plot_average_accuracy(feedback: list[HistoryEntry], size=(12, 6)):
+def plot_average_accuracy(
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], size=(12, 6)
+):
     plt.figure(figsize=size)
     plt.plot([it.metrics.average_accuracy for it in feedback], label="Accuracy")
     plt.title("Eval Average Accuracy")
@@ -74,7 +82,7 @@ def plot_average_accuracy(feedback: list[HistoryEntry], size=(12, 6)):
     plt.show()
 
 
-def plot_kappa(feedback: list[HistoryEntry], size=(12, 6)):
+def plot_kappa(feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], size=(12, 6)):
     plt.figure(figsize=size)
     plt.plot([it.metrics.kappa_score for it in feedback], label="Kappa")
     plt.title("Eval kappa score")
@@ -152,7 +160,10 @@ def plot_by_split_progress(splits, num_classes) -> animation.FuncAnimation:
 
 
 def plot_extracted_features_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry],
+    h: int,
+    w: int,
+    num_classes: int,
 ) -> animation.FuncAnimation:
     extracted_features = [
         [
@@ -166,18 +177,23 @@ def plot_extracted_features_by_epoch(
 
 
 def plot_clusters_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry],
+    h: int,
+    w: int,
 ) -> animation.FuncAnimation:
     semantic_constraint = [
         [it.reshape(h, w) for it in h_e.step_snapshots.clustering_result]
         for h_e in feedback
     ]
 
-    return plot_by_split_progress(semantic_constraint)
+    return plot_by_split_progress(semantic_constraint, None)
 
 
 def plot_semantic_constraints_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry],
+    h: int,
+    w: int,
+    num_classes: int,
 ) -> animation.FuncAnimation:
     semantic_constraint = [
         [it.reshape(h, w) for it in h_e.step_snapshots.semantic_constraint]
@@ -188,7 +204,10 @@ def plot_semantic_constraints_by_epoch(
 
 
 def plot_merged_semantic_constraint_by_epoch(
-    feedback: list[HistoryEntry], h: int, w: int, num_classes: int
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry],
+    h: int,
+    w: int,
+    num_classes: int,
 ) -> animation.FuncAnimation:
     prediction_attempts = [
         it.step_snapshots.merged_semantic_constraint.reshape(h, w) for it in feedback
@@ -197,7 +216,7 @@ def plot_merged_semantic_constraint_by_epoch(
 
 
 def plot_predictions_by_epoch(
-    feedback: list[HistoryEntry], num_classes: int
+    feedback: list[SpatialRegulatedSelfTrainingHistoryEntry], num_classes: int
 ) -> animation.FuncAnimation:
     prediction_attempts = [
         it.step_snapshots.spatial_constraint_result for it in feedback
