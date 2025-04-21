@@ -1,3 +1,4 @@
+from pathlib import Path
 from sklearn.pipeline import make_pipeline
 import torch
 import numpy as np
@@ -60,6 +61,8 @@ class ImprovedSpatialRegulatedSelfTrainingPipelineArgs:
     spatial_threshold: int = 8
     spatial_constraint_weights: list[float] = field(default_factory=lambda: [1, 0.5])
     record_step_snapshots: bool = True
+    cache_folder: Path = None
+    verbose: bool = True
 
 
 class ImprovedSpatialRegulatedSelfTrainingPipeline:
@@ -74,6 +77,8 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
     spatial_threshold: int
     spatial_constraint_weights: list[float]
     history: list[ImprovedSpatialRegulatedSelfTrainingHistoryEntry]
+    cache_folder: Path
+    verbose: bool
 
     def __init__(self, args: ImprovedSpatialRegulatedSelfTrainingPipelineArgs, device):
         self.num_classes = args.num_classes
@@ -87,7 +92,9 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
         self.spatial_threshold = args.spatial_threshold
         self.spatial_constraint_weights = args.spatial_constraint_weights
         self.record_step_snapshots = args.record_step_snapshots
+        self.cache_folder = args.cache_folder
         self.device = device
+        self.verbose = args.verbose
         self.history = []
 
         self.f1 = F1Score(
@@ -114,7 +121,7 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
         original_shape = initial_labels.shape
         z, y = self.init_extract_patch(image, initial_labels)
 
-        with create_progress_bar()(total=5) as pb:
+        with create_progress_bar()(total=5, disable=not self.verbose) as pb:
             pb.set_description("[INIT] Extract initial features")
             x = self.extract_init_features(z)
             pb.update()
@@ -149,7 +156,9 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
         z = self.extract_patches(image)
         y = init_y
 
-        with create_progress_bar()(range(len(self.cluster_sizes) - 1)) as pb:
+        with create_progress_bar()(
+            range(len(self.cluster_sizes) - 1), disable=not self.verbose
+        ) as pb:
             for cluster_size in self.cluster_sizes[1:]:
                 y = extract_label_patches(y)
                 y_tensor = torch.tensor(y, device=self.device, dtype=torch.long)
@@ -192,9 +201,11 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
         return extract_patches(image, initial_labels, self.init_patch_size)
 
     def init_over_cluster(self, features):
+        if self.cache_folder is None:
+            return self.over_cluster(self.cluster_sizes[0], features)
+
         cache_loc = (
-            CACHE_FOLDER
-            / "improved-init-clustering"
+            self.cache_folder
             / f"{self.cluster_sizes[0]}-{self.dim_reduction.get_n_components()}-{len(self.cluster_sizes)}"
         )
 
