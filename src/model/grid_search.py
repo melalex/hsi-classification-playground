@@ -1,13 +1,14 @@
 import csv
 
 import numpy as np
+import torch
 import tqdm
+import multiprocessing as mp
 
 from abc import ABC
 from itertools import product
 from pathlib import Path
 from typing import Optional, Sequence
-from multiprocessing import Pool
 from src.util.list_ext import split
 
 
@@ -46,18 +47,21 @@ class GridSearch[M]:
 
     def run(
         self, start_from: dict[int, int] = {}
-    ) -> tuple[M, dict[str, Sequence[float]], float]:
+    ) -> tuple[M, dict[str, Sequence[float]], dict[str, float]]:
         def resume_split_from(split: int):
             if split in start_from:
                 return start_from[split]
             else:
                 return 0
 
+        if torch.cuda.is_available():
+            mp.set_start_method("spawn", force=True)
+
         param_grid = self.adapter.params_grid()
         keys = list(param_grid.keys())
         params_list = list(product(*param_grid.values()))
 
-        with Pool(processes=self.num_workers) as pool:
+        with mp.Pool(processes=self.num_workers) as pool:
             param_splits = split(params_list, self.num_workers)
 
             params = [
@@ -74,7 +78,7 @@ class GridSearch[M]:
 
             result = pool.starmap(run_split_multiprocessing_workaround, params)
 
-            return max(result, key=lambda x: x[2])
+            return max(result, key=lambda x: x[2][self.optimize_metric])
 
     def run_split(
         self,
@@ -83,7 +87,7 @@ class GridSearch[M]:
         split_len: int,
         start_from: int,
         keys: Sequence[str],
-    ) -> tuple[M, dict[str, Sequence[float]], float]:
+    ) -> tuple[M, dict[str, Sequence[float]], dict[str, float]]:
         params_list = params_list[start_from:]
         best_score = {self.optimize_metric: -np.inf}
         best_params = None
