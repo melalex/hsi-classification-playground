@@ -110,12 +110,14 @@ class ImprovedSpatialRegulatedSelfTrainingPipeline:
 
     def fit(self, image, initial_labels, eval_y=None):
         scaler, image = scale_image(image)
-        reducer, image = self.dim_reduction.reduce(image)
+
+        self.scaler = scaler
+
+        image = self.dim_reduction.fit(image)
         init_y = self.init_fit(image, initial_labels, eval_y)
         y = self.iter_fit(image, init_y, eval_y)
-        preprocess_pipeline = make_pipeline(scaler, reducer)
 
-        return preprocess_pipeline, y
+        return y
 
     def init_fit(self, image, initial_labels, eval_labels=None):
         original_shape = initial_labels.shape

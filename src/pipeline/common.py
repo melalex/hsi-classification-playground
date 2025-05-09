@@ -1,13 +1,14 @@
+import numpy as np
+import torch
+
 from abc import ABC
 from collections import defaultdict
-import numpy as np
-from sklearn.base import BaseEstimator
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
-import torch
 from torch import nn
 from torch.utils import data
 
+from src.trainer.autoencoder_trainer import AutoEncoderTrainer
 from src.trainer.classification_trainer import ClassificationTrainer
 from src.util.list_ext import group_indices
 
@@ -113,7 +114,7 @@ class Clustering(ABC):
 
 class KMeansClustering(Clustering):
 
-    def __init__(self, seed=42, n_init=5):
+    def __init__(self, seed=42, n_init=3):
         self.seed = seed
         self.n_init = n_init
 
@@ -125,7 +126,10 @@ class KMeansClustering(Clustering):
 
 class DimensionalityReducer(ABC):
 
-    def reduce(self, input: np.array) -> tuple[BaseEstimator, np.array]:
+    def fit(self, input: np.array) -> np.array:
+        pass
+
+    def transform(self, input: np.array) -> np.array:
         pass
 
     def get_n_components(self) -> int:
@@ -137,16 +141,67 @@ class PcaDimensionalityReducer(DimensionalityReducer):
     def __init__(self, n_components):
         self.n_components = n_components
 
-    def reduce(self, input: np.array) -> tuple[BaseEstimator, np.array]:
+    def fit(self, input: np.array) -> np.array:
         h, w, c = input.shape
         reshaped_data = input.reshape(c, -1).T
 
-        pca = PCA(n_components=self.n_components)
-        reduced_data = pca.fit_transform(reshaped_data)
+        self.pca = PCA(n_components=self.n_components)
+        reduced_data = self.pca.fit_transform(reshaped_data)
 
         reduced_image = reduced_data.T.reshape(h, w, self.n_components)
 
-        return pca, reduced_image
+        return reduced_image
+
+    def transform(self, input: np.array):
+        h, w, c = input.shape
+        reshaped_data = input.reshape(c, -1).T
+
+        reduced_data = self.pca.transform(reshaped_data)
+        reduced_image = reduced_data.T.reshape(h, w, self.n_components)
+
+        return reduced_image
+
+    def get_n_components(self):
+        return self.n_components
+
+
+class AutoEncoderDimensionalityReducer(DimensionalityReducer):
+
+    def __init__(
+        self,
+        n_components: int,
+        autoencoder: nn.Module,
+        trainer: AutoEncoderTrainer,
+        device,
+    ):
+        self.n_components = n_components
+        self.autoencoder = autoencoder
+        self.trainer = trainer
+        self.device = device
+
+    def fit(self, input: np.array) -> np.array:
+        x_tensor = torch.tensor(input, dtype=torch.float32, device=self.device).permute(
+            2, 0, 1
+        )
+        _, w, h = x_tensor.shape
+        y_tensor = torch.zeros((w, h), dtype=torch.int32, device=self.device)
+
+        dataset = data.TensorDataset(x_tensor.unsqueeze(0), y_tensor.unsqueeze(0))
+        train_loader = data.DataLoader(dataset)
+
+        self.trainer.fit(train_loader)
+        reduced_image, _ = self.autoencoder(x_tensor)
+
+        return reduced_image.cpu().detach().permute(1, 2, 0).numpy()
+
+    def transform(self, input: np.array):
+        x_tensor = torch.tensor(input, dtype=torch.float32, device=self.device).permute(
+            2, 0, 1
+        )
+
+        reduced_image, _ = self.autoencoder(x_tensor)
+
+        return reduced_image.cpu().detach().permute(0, 2, 3, 1).squeeze(0).numpy()
 
     def get_n_components(self):
         return self.n_components

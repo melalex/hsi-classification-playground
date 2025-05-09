@@ -8,6 +8,16 @@ from src.pipeline.spatial_regulated_self_training_pipeline import (
 )
 
 
+def plot_loss_generic(feedback: list[float], desc="loss", size=(12, 6)):
+    plt.figure(figsize=size)
+    plt.plot(feedback, label=desc)
+    plt.title("Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
+
+
 def plot_segmentation_comparison(
     ground_truth,
     predicted_labels,
