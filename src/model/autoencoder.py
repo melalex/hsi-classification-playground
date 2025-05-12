@@ -16,6 +16,21 @@ class BaseAutoEncoder(nn.Module):
         super().__init__()
 
 
+class AutoEncoder(nn.Module):
+
+    def __init__(self, encoder: nn.Module, decoder: nn.Module):
+        super().__init__()
+
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+
+        return encoded, decoded
+
+
 class SymmetricAutoEncoder(BaseAutoEncoder):
 
     def __init__(self, units: list[int], activation: str):

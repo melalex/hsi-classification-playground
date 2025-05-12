@@ -7,6 +7,7 @@ from src.definitions import EXTERNAL_DATA_FOLDER
 from src.util.image import scale_image
 from src.util.kaggle import download_and_unzip
 from src.util.patches import extract_patches, scale_patched
+from src.util.semi_guided import sample_fraction_from_segmentation_vector
 
 
 def load_indian_pines(dest=EXTERNAL_DATA_FOLDER):
@@ -46,3 +47,39 @@ def create_patched_indian_pines_dataset(
     y_tensor = torch.tensor(y, dtype=torch.long, device=device)
 
     return scale, TensorDataset(x_tensor, y_tensor)
+
+
+def create_patched_indian_pines_semi_guided_dataset(
+    device, patch_size=5, fraction_of_examples=0.1, dest=EXTERNAL_DATA_FOLDER
+):
+    image, labels = load_indian_pines(dest)
+    x, y = extract_patches(image, labels, patch_size=patch_size)
+    scale, x = scale_patched(x)
+
+    y_masked = sample_fraction_from_segmentation_vector(y, fraction_of_examples)
+    mask = y_masked > 0
+
+    x_labeled = x[mask, :, :, :]
+    y_labeled = y[mask]
+    x_unlabeled = x[~mask, :, :, :]
+    y_unlabeled = y[~mask]
+
+    x_full_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(
+        0, 3, 1, 2
+    )
+    y_full_tensor = torch.tensor(y, dtype=torch.long, device=device)
+    x_labeled_tensor = torch.tensor(
+        x_labeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long, device=device)
+    x_unlabeled_tensor = torch.tensor(
+        x_unlabeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_unlabeled_tensor = torch.tensor(y_unlabeled, dtype=torch.long, device=device)
+
+    return (
+        scale,
+        TensorDataset(x_full_tensor, y_full_tensor),
+        TensorDataset(x_labeled_tensor, y_labeled_tensor),
+        TensorDataset(x_unlabeled_tensor, y_unlabeled_tensor),
+    )

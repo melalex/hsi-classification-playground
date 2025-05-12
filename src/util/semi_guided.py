@@ -12,14 +12,20 @@ def value_counts_array(arr, num_classes):
 
 
 def sample_fraction_from_segmentation(source, fraction_of_examples):
+    source_arr = source.reshape(-1)
+    result = sample_fraction_from_segmentation_vector(source_arr, fraction_of_examples)
+
+    return result.reshape(source.shape)
+
+
+def sample_fraction_from_segmentation_vector(source, fraction_of_examples):
     if fraction_of_examples == 1:
         return source
 
-    source_arr = source.reshape(-1)
-    len_source = len(source_arr)
-    num_classes = len(np.unique(source_arr)) - 1
+    len_source = len(source)
+    num_classes = len(np.unique(source)) - 1
     examples_per_class = (
-        value_counts_array(source_arr, num_classes) * fraction_of_examples
+        value_counts_array(source, num_classes) * fraction_of_examples
     ).astype(int)
     examples_count = np.zeros(num_classes)
     result = np.zeros(len_source)
@@ -30,7 +36,7 @@ def sample_fraction_from_segmentation(source, fraction_of_examples):
             raise RuntimeError("Max number of iterations exceeded")
 
         i = np.random.randint(low=0, high=len_source)
-        it = source_arr[i]
+        it = source[i]
         examples_count_i = it - 1
 
         if (
