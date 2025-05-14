@@ -1,6 +1,5 @@
 from typing import Optional
-import numpy as np
-
+from torch import nn
 from dataclasses import dataclass
 from tqdm.notebook import tqdm
 from torch.utils.data import DataLoader
@@ -24,26 +23,25 @@ class TrainFeedBack:
 
 class AutoEncoderTrainer:
 
-    def __init__(self, model, loss_fun, epochs, optimizer):
-        self.model = model
+    def __init__(self, loss_fun, epochs, optimizer):
         self.loss_fun = loss_fun
         self.epochs = epochs
         self.optimizer = optimizer
 
     def fit(
-        self, train: DataLoader, eval: Optional[DataLoader] = None
+        self, model: nn.Module, train: DataLoader, eval: Optional[DataLoader] = None
     ) -> TrainFeedBack:
         history = []
 
         with tqdm(total=self.epochs) as p_bar:
             for _ in range(self.epochs):
-                self.model.train()
+                model.train()
                 total_loss = 0
 
                 for x, _ in train:
                     self.optimizer.zero_grad()
 
-                    _, decoded = self.model(x)
+                    _, decoded = model(x)
 
                     loss = self.loss_fun(decoded, x)
 
@@ -63,7 +61,7 @@ class AutoEncoderTrainer:
                 eval_metrics = None
 
                 if eval is not None:
-                    eval_metrics = self.eval(eval)
+                    eval_metrics = self.eval(model, eval)
 
                     progress_postfix["eval_loss"] = eval_metrics.loss
 
@@ -76,14 +74,14 @@ class AutoEncoderTrainer:
 
         return TrainFeedBack(history)
 
-    def eval(self, loader: DataLoader) -> AutoEncoderMetrics:
-        self.model.eval()
+    def eval(self, model: nn.Module, loader: DataLoader) -> AutoEncoderMetrics:
+        model.eval()
 
         total_loss = 0
 
         for x, _ in loader:
             self.optimizer.zero_grad()
-            _, decoded = self.model(x)
+            _, decoded = model(x)
             loss = self.loss_fun(decoded, x)
 
             total_loss += loss.item()

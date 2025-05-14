@@ -29,16 +29,15 @@ def reduce_depth_with_autoencoder(image, model, trainer, device):
         data.TensorDataset(autoencoder_x, torch.zeros(autoencoder_x.shape[0]))
     )
 
-    trainer.fit(train_autoencoder_loader)
+    trainer.fit(model, train_autoencoder_loader)
 
     encoded, _ = model(autoencoder_x)
-
 
     return encoded.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
 
 
 def reduce_depth_with_patched_autoencoder(
-    image, patch_size, model, trainer, device, batch_size=128
+    image, patch_size, model, trainers, device, batch_size=128
 ):
     h, w, _ = image.shape
     labels = np.zeros((h, w))
@@ -52,7 +51,8 @@ def reduce_depth_with_patched_autoencoder(
         data.TensorDataset(x_tensor, y_tensor), batch_size=batch_size
     )
 
-    trainer.fit(train_loader)
+    for trainer in trainers:
+        trainer.fit(model, train_loader)
 
     encoded, _ = model(x_tensor)
 

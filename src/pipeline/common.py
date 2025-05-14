@@ -189,7 +189,7 @@ class AutoEncoderDimensionalityReducer(DimensionalityReducer):
         dataset = data.TensorDataset(x_tensor.unsqueeze(0), y_tensor.unsqueeze(0))
         train_loader = data.DataLoader(dataset)
 
-        self.trainer.fit(train_loader)
+        self.trainer.fit(self.autoencoder, train_loader)
         reduced_image, _ = self.autoencoder(x_tensor)
 
         return reduced_image.cpu().detach().permute(1, 2, 0).numpy()
