@@ -8,12 +8,12 @@ from src.pipeline.spatial_regulated_self_training_pipeline import (
 )
 
 
-def plot_loss_generic(feedback: list[float], desc="loss", size=(12, 6)):
+def plot_epoch_generic(feedback: list[float], desc="Loss", size=(12, 6)):
     plt.figure(figsize=size)
     plt.plot(feedback, label=desc)
-    plt.title("Loss")
+    plt.title(desc)
     plt.xlabel("Epoch")
-    plt.ylabel("Loss")
+    plt.ylabel(desc)
     plt.legend()
     plt.show()
 

@@ -74,10 +74,7 @@ def mask_patched_indian_pines(x, y, fraction_of_examples):
 
     x_full_tensor = torch.tensor(x, dtype=torch.float32).permute(0, 3, 1, 2)
     y_full_tensor = torch.tensor(y, dtype=torch.long)
-    x_labeled_tensor = torch.tensor(
-        x_labeled,
-        dtype=torch.float32,
-    ).permute(0, 3, 1, 2)
+    x_labeled_tensor = torch.tensor(x_labeled, dtype=torch.float32).permute(0, 3, 1, 2)
     y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long)
     x_unlabeled_tensor = torch.tensor(x_unlabeled, dtype=torch.float32).permute(
         0, 3, 1, 2

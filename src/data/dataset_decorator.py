@@ -1,5 +1,6 @@
 import torch.utils.data as data
 
+
 class UnlabeledDatasetDecorator(data.Dataset):
 
     def __init__(self, decorated: data.Dataset):
@@ -11,6 +12,4 @@ class UnlabeledDatasetDecorator(data.Dataset):
         return len(self.decorated)
 
     def __getitem__(self, idx):
-        x, _ = self.decorated[idx]
-
-        return x
+        return self.decorated[idx][0]

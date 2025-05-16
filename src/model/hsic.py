@@ -5,10 +5,9 @@ from torchmetrics import CohenKappa
 from torchmetrics.classification import F1Score
 from torchmetrics.classification import Accuracy
 
-from src.model.fully_convolutional_lenet import FullyConvolutionalLeNet
-
 
 class HyperSpectralImageClassifier(L.LightningModule):
+
     def __init__(self, net: nn.Module, num_classes: int, lr: float = 1e-3):
         super().__init__()
         self.lr = lr
