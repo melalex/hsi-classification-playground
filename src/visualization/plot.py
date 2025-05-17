@@ -2,6 +2,7 @@ import numpy as np
 import seaborn as sns
 
 from matplotlib import animation, pyplot as plt
+import torch
 
 from src.pipeline.spatial_regulated_self_training_pipeline import (
     SpatialRegulatedSelfTrainingHistoryEntry,
@@ -232,3 +233,26 @@ def plot_predictions_by_epoch(
         it.step_snapshots.spatial_constraint_result for it in feedback
     ]
     return plot_progress_animation(prediction_attempts, num_classes)
+
+
+def plot_softmax_probs(probs, num_classes):
+    for class_idx in range(num_classes):
+        plt.imshow(probs[class_idx].cpu().detach().numpy(), cmap="viridis")
+        plt.title(f"Softmax Probability - Class {class_idx}")
+        plt.colorbar()
+        plt.show()
+
+
+def plot_confidence_map(probs):
+    confidence_map, predicted_class_map = torch.max(probs, dim=0)
+
+    plt.imshow(predicted_class_map.cpu().numpy(), cmap="tab20")
+    plt.title("Predicted Class Map")
+    plt.colorbar()
+    plt.show()
+
+    # Confidence map (max softmax prob per pixel)
+    plt.imshow(confidence_map.cpu().numpy(), cmap="plasma")
+    plt.title("Confidence Map (Max Prob per Pixel)")
+    plt.colorbar()
+    plt.show()
