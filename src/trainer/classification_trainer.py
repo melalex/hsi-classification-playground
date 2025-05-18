@@ -18,21 +18,19 @@ from src.util.progress_bar import create_progress_bar
 
 
 class ClassificationTrainer(BaseTrainer):
-    num_epochs: int
-    learning_rate: float
 
     def __init__(
         self,
         num_epochs: int,
         num_classes: int,
         criterion: nn.Module,
-        device,
+        device: torch.device,
         record_history: bool = True,
     ):
         self.num_epochs = num_epochs
-        self.learning_rate = num_classes
         self.record_history = record_history
         self.criterion = criterion
+        self.device = device
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -62,6 +60,9 @@ class ClassificationTrainer(BaseTrainer):
                 train_total_loss = 0
 
                 for x, y_true in train_dataloader:
+                    x = x.to(self.device)
+                    y_true = y_true.to(self.device)
+
                     optimizer.zero_grad()
 
                     y_pred = model(x)
@@ -100,6 +101,8 @@ class ClassificationTrainer(BaseTrainer):
 
         with torch.no_grad():
             for x in dataloader:
+                x = x.to(self.device)
+
                 y_pred = model(x)
 
                 result_x.append(x)
@@ -115,6 +118,8 @@ class ClassificationTrainer(BaseTrainer):
 
         with torch.no_grad():
             for x, y_true in dataloader:
+                x = x.to(self.device)
+                y_true = y_true.to(self.device)
                 y_pred = model(x)
                 all_preds.append(y_pred)
                 all_targets.append(y_true)

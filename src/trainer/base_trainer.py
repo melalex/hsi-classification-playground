@@ -32,13 +32,12 @@ class AdamOptimizedModule(TrainableModule):
 
         self.lr = lr
         self.net = net
-        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
         return self.net(x)
 
     def configure_optimizers(self):
-        return self.optimizer
+        return optim.Adam(self.parameters(), lr=self.lr)
 
 
 class BaseTrainer(ABC):

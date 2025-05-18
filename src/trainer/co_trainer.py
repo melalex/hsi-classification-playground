@@ -1,19 +1,12 @@
-from abc import ABC
-from dataclasses import dataclass, field
-from typing import Callable, Optional
-import numpy as np
-import torch.nn.functional as F
+from typing import Optional
 
-from sklearn.model_selection import train_test_split
 from torch import Generator, nn
 import torch
 from torch.utils import data
-from torchmetrics import Accuracy, CohenKappa, F1Score
 
 from src.data.dataset_decorator import UnlabeledDatasetDecorator
 from src.model.ensemble import Ensemble
 from src.trainer.base_trainer import BaseTrainer, TrainerFeedback, TrainerHistoryEntry
-from src.trainer.classification_trainer import ClassificationTrainer
 from src.util.progress_bar import create_progress_bar
 
 
@@ -55,7 +48,11 @@ class BiCoTrainer:
 
                     ds_1 = data.ConcatDataset([ds_1, new_ds_1])
                     ds_2 = data.ConcatDataset([ds_2, new_ds_2])
-                    unlabeled = data.TensorDataset(x[~confidence_1 & ~confidence_2])
+
+                    used_mask = confidence_1 | confidence_2
+                    remaining_mask = ~used_mask
+
+                    unlabeled = data.TensorDataset(x[remaining_mask])
                 else:
                     run = False
 

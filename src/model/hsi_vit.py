@@ -1,54 +1,88 @@
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from torchvision.models import VisionTransformer
+
+class PatchEmbedding(nn.Module):
+
+    def __init__(self, patch_h, patch_w, embeding_size):
+        super().__init__()
+        self.linear = nn.Linear(patch_h * patch_w, embeding_size)
+
+    def forward(self, x):
+        B, C, H, W = x.shape  
+        x = x.view(B, C, -1) 
+        x = self.linear(x)
+
+        return x
+
+
+class TransformerEncoder(nn.Module):
+
+    def __init__(
+        self,
+        dim=64,
+        depth=5,
+        heads=4,
+        mlp_dim=8,
+        dropout=0.1,
+    ):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(
+                nn.TransformerEncoderLayer(
+                    d_model=dim,
+                    nhead=heads,
+                    dim_feedforward=mlp_dim,
+                    dropout=dropout,
+                    activation="gelu",
+                    batch_first=True,
+                )
+            )
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
 
 class HsiVisionTransformer(nn.Module):
 
     def __init__(
         self,
-        patch_size=16,
-        num_layers=12,
-        num_heads=12,
-        hidden_dim=768,
-        mlp_dim=3072,
+        num_classes,
+        input_shape,
+        hidden_dim=64,
+        num_layers=5,
+        num_heads=4,
+        mlp_dim=8,
+        dropout=0.1,
     ):
         super().__init__()
+        _, patch_h, patch_w = input_shape
 
-        self.stem = Conv3DStem()
-
-        self.vit = VisionTransformer(
-            image_size=224,
-            patch_size=patch_size,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            hidden_dim=hidden_dim,
+        self.embed = PatchEmbedding(patch_h, patch_w, hidden_dim)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_dim))
+        self.transformer = TransformerEncoder(
+            dim=hidden_dim,
+            depth=num_layers,
+            heads=num_heads,
             mlp_dim=mlp_dim,
+            dropout=dropout,
+        )
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, num_classes),
         )
 
     def forward(self, x):
-        x = self.stem(x)
-        x = self.vit(x)
+        B = x.shape[0]
+        x = self.embed(x)
 
-        return x
+        cls_tokens = self.cls_token.expand(B, -1, -1)  
+        x = torch.cat((cls_tokens, x), dim=1)  
 
-
-class Conv3DStem(nn.Module):
-    def __init__(self):
-        super(Conv3DStem, self).__init__()
-        self.model = nn.Sequential(
-            nn.ConvTranspose2d(200, 128, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(16, 3, kernel_size=5, stride=2, padding=1),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=68, stride=1, padding=1),
-        )
-
-    def forward(self, x):
-        return self.model(x)
+        x = self.transformer(x)
+        x = x[:, 0] 
+        return self.mlp_head(x)

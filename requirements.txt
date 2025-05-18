@@ -11,3 +11,4 @@ tqdm==4.66.5
 seaborn==0.13.2
 torcheval==0.0.7
 lightning==2.5.1
+einops==0.8.1

@@ -7,7 +7,6 @@ from src.definitions import EXTERNAL_DATA_FOLDER
 from src.util.image import scale_image
 from src.util.kaggle import download_and_unzip
 from src.util.patches import extract_patches, scale_patched
-from src.util.semi_guided import sample_fraction_from_segmentation_vector_with_zeros
 
 
 def load_indian_pines(dest=EXTERNAL_DATA_FOLDER):
@@ -19,6 +18,13 @@ def load_indian_pines(dest=EXTERNAL_DATA_FOLDER):
     y = scipy.io.loadmat(ds_path / "Indian_pines_gt.mat")
 
     return x["indian_pines_corrected"], y["indian_pines_gt"]
+
+def load_indian_pines_v2(dest=EXTERNAL_DATA_FOLDER):
+    x = scipy.io.loadmat(
+        "/home/melal/Workspace/spatial-regulated-self-training/data/external/IndianPine.mat"
+    )
+
+    return x["input"], x["TR"], x["TE"], x["TR"] + x["TE"]
 
 
 def create_indian_pines_dataset(device, dest=EXTERNAL_DATA_FOLDER):

@@ -256,3 +256,19 @@ def plot_confidence_map(probs):
     plt.title("Confidence Map (Max Prob per Pixel)")
     plt.colorbar()
     plt.show()
+
+
+def plot_numbers_distribution(
+    numbers, size=(8, 5), desc="Integer Value Distribution in Array"
+):
+    unique, counts = np.unique(numbers, return_counts=True)
+
+    plt.figure(figsize=size)
+    plt.bar(unique, counts, color="skyblue", edgecolor="black")
+    plt.xlabel("Value")
+    plt.ylabel("Count")
+    plt.title(desc)
+    plt.xticks(unique)
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.tight_layout()
+    plt.show()
