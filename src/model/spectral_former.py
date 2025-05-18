@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from einops import rearrange, repeat
-import torch.functional as F
 
 
 class Residual(nn.Module):
@@ -136,7 +135,8 @@ class Transformer(nn.Module):
         return x
 
 
-class ViT(nn.Module):
+class SpectralFormer(nn.Module):
+
     def __init__(
         self,
         image_size,
@@ -147,12 +147,10 @@ class ViT(nn.Module):
         depth,
         heads,
         mlp_dim,
-        pool="cls",
-        channels=1,
         dim_head=16,
         dropout=0.0,
         emb_dropout=0.0,
-        mode="ViT",
+        mode="CAF",
     ):
         super().__init__()
 
@@ -167,7 +165,6 @@ class ViT(nn.Module):
             dim, depth, heads, dim_head, mlp_dim, dropout, num_patches, mode
         )
 
-        self.pool = pool
         self.to_latent = nn.Identity()
 
         self.mlp_head = nn.Sequential(nn.LayerNorm(dim), nn.Linear(dim, num_classes))
@@ -192,7 +189,6 @@ class ViT(nn.Module):
 
         # classification: using cls_token output
         x = self.to_latent(x[:, 0])
-        # x = self.to_latent(x[:, 1:])
-        # MLP classification layer
 
+        # MLP classification layer
         return self.mlp_head(x)

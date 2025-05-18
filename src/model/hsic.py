@@ -1,3 +1,4 @@
+from typing import Optional
 from torch import optim, nn
 import lightning as L
 import torch
@@ -8,10 +9,22 @@ from torchmetrics.classification import Accuracy
 
 class HyperSpectralImageClassifier(L.LightningModule):
 
-    def __init__(self, net: nn.Module, num_classes: int, lr: float = 1e-3):
+    def __init__(
+        self,
+        net: nn.Module,
+        num_classes: int,
+        lr: float = 1e-3,
+        weight_decay=0,
+        scheduler_step_size: Optional[int] = None,
+        scheduler_gamma: Optional[float] = None,
+    ):
         super().__init__()
         self.lr = lr
+        self.weight_decay = weight_decay
         self.net = net
+        self.scheduler_step_size = scheduler_step_size
+        self.scheduler_gamma = scheduler_gamma
+
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
         )
@@ -72,5 +85,23 @@ class HyperSpectralImageClassifier(L.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
+        optimizer = optim.Adam(
+            self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
+        if self.scheduler_step_size and self.scheduler_gamma:
+            scheduler = optim.lr_scheduler.StepLR(
+                optimizer,
+                step_size=self.scheduler_step_size,
+                gamma=self.scheduler_gamma,
+            )
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "interval": "epoch",
+                    "frequency": 1,
+                    "monitor": None,
+                },
+            }
+        else:
+            return optimizer
