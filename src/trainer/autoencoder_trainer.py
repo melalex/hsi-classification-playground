@@ -1,89 +1,108 @@
 from typing import Optional
-from torch import nn
-from dataclasses import dataclass
+from torch import Tensor, nn
+import torch
 from tqdm.notebook import tqdm
 from torch.utils.data import DataLoader
 
-
-@dataclass
-class AutoEncoderMetrics:
-    loss: float
-
-
-@dataclass
-class AutoEncoderTrainerHistoryEntry:
-    train: AutoEncoderMetrics
-    eval: Optional[AutoEncoderMetrics]
+from src.trainer.base_trainer import (
+    BaseTrainer,
+    TrainableModule,
+    TrainerFeedback,
+    TrainerHistoryEntry,
+)
 
 
-@dataclass
-class TrainFeedBack:
-    history: list[AutoEncoderTrainerHistoryEntry]
+class AutoEncoderTrainer(BaseTrainer):
 
-
-class AutoEncoderTrainer:
-
-    def __init__(self, loss_fun, epochs, optimizer):
+    def __init__(self, loss_fun, epochs, device, validate_every_n_steps=1):
         self.loss_fun = loss_fun
         self.epochs = epochs
-        self.optimizer = optimizer
+        self.device = device
+        self.validate_every_n_steps = validate_every_n_steps
 
     def fit(
-        self, model: nn.Module, train: DataLoader, eval: Optional[DataLoader] = None
-    ) -> TrainFeedBack:
+        self,
+        model: TrainableModule,
+        train: DataLoader,
+        eval: Optional[DataLoader] = None,
+    ) -> TrainerFeedback:
         history = []
+        model = model.to(self.device)
+        optimizer = model.configure_optimizers()
+        scheduler = model.configure_scheduler(optimizer)
 
-        with tqdm(total=self.epochs) as p_bar:
-            for _ in range(self.epochs):
+        with tqdm(total=self.epochs) as pb:
+            for epoch in range(self.epochs):
                 model.train()
                 total_loss = 0
 
                 for x, _ in train:
-                    self.optimizer.zero_grad()
+                    x = x.to(self.device)
+
+                    optimizer.zero_grad()
 
                     _, decoded = model(x)
 
                     loss = self.loss_fun(decoded, x)
 
                     loss.backward()
-                    self.optimizer.step()
+                    optimizer.step()
 
                     total_loss += loss.item()
 
                 train_loss = total_loss / len(train)
 
-                train_metrics = AutoEncoderMetrics(train_loss)
+                train_metrics = {"train_loss": train_loss}
 
-                progress_postfix = {
-                    "loss": train_loss,
-                }
-
-                eval_metrics = None
-
-                if eval is not None:
-                    eval_metrics = self.eval(model, eval)
-
-                    progress_postfix["eval_loss"] = eval_metrics.loss
-
-                history.append(
-                    AutoEncoderTrainerHistoryEntry(train_metrics, eval_metrics)
+                eval_metrics = (
+                    self.validate(model, eval)
+                    if eval and (epoch + 1) % self.validate_every_n_steps == 0
+                    else {}
                 )
 
-                p_bar.set_postfix(**progress_postfix)
-                p_bar.update()
+                h_entry = TrainerHistoryEntry(train_metrics, eval_metrics)
 
-        return TrainFeedBack(history)
+                history.append(h_entry)
 
-    def eval(self, model: nn.Module, loader: DataLoader) -> AutoEncoderMetrics:
+                if scheduler:
+                    scheduler.step()
+
+                pb.set_postfix(**h_entry.as_postfix())
+                pb.update()
+
+        return TrainerFeedback(history)
+
+    def validate(self, model: nn.Module, loader: DataLoader) -> dict[str, float]:
         model.eval()
 
         total_loss = 0
 
-        for x, _ in loader:
-            self.optimizer.zero_grad()
-            _, decoded = model(x)
-            loss = self.loss_fun(decoded, x)
+        with torch.no_grad():
+            for x, _ in loader:
+                x = x.to(self.device)
 
-            total_loss += loss.item()
+                _, decoded = model(x)
+                loss = self.loss_fun(decoded, x)
 
-        return AutoEncoderMetrics(loss=total_loss / len(loader))
+                total_loss += loss.item()
+
+        return {"eval_loss": total_loss / len(loader)}
+
+    def predict(
+        self, model: nn.Module, dataloader: DataLoader
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        model.eval()
+
+        result_x = []
+        result_y = []
+
+        with torch.no_grad():
+            for x in dataloader:
+                x = x.to(self.device)
+
+                _, decoded = model(x)
+
+                result_x.append(x)
+                result_y.append(decoded)
+
+        return result_x, result_y

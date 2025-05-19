@@ -3,11 +3,9 @@ import torch
 from typing import Optional
 from torch import Tensor, nn
 
-from torch.nn import functional
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, CohenKappa, F1Score
 
-from src.data.dataset_decorator import UnlabeledDatasetDecorator
 from src.trainer.base_trainer import (
     BaseTrainer,
     TrainableModule,
@@ -27,12 +25,14 @@ class ClassificationTrainer(BaseTrainer):
         device: torch.device,
         record_history: bool = True,
         validate_every_n_steps: int = 1,
+        gradient_accumulation_steps: int = 1,  
     ):
         self.num_epochs = num_epochs
         self.record_history = record_history
         self.criterion = criterion
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
+        self.gradient_accumulation_steps = gradient_accumulation_steps  
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -51,33 +51,36 @@ class ClassificationTrainer(BaseTrainer):
         train_dataloader: DataLoader,
         eval_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
+        model = model.to(self.device)
         optimizer = model.configure_optimizers()
-        scheduler = model.configure_scheduller(optimizer)
+        scheduler = model.configure_scheduler(optimizer)
 
         history = []
 
         with create_progress_bar()(total=self.num_epochs) as pb:
             for epoch in range(self.num_epochs):
-                if scheduler:
-                    scheduler.step()
-
                 model.train()
 
                 train_total_loss = 0
 
-                for x, y_true in train_dataloader:
+                for step, (x, y_true) in enumerate(train_dataloader):
                     x = x.to(self.device)
                     y_true = y_true.to(self.device)
 
-                    optimizer.zero_grad()
-
                     y_pred = model(x)
-
                     loss = self.criterion(y_pred, y_true)
-                    loss.backward()
-                    optimizer.step()
+                    loss = loss / self.gradient_accumulation_steps 
 
-                    train_total_loss += loss.item()
+                    loss.backward()
+                    train_total_loss += (
+                        loss.item() * self.gradient_accumulation_steps
+                    ) 
+
+                    if (step + 1) % self.gradient_accumulation_steps == 0 or (
+                        step + 1
+                    ) == len(train_dataloader):
+                        optimizer.step()
+                        optimizer.zero_grad()
 
                 epoch_loss = train_total_loss / len(train_dataloader)
 
@@ -85,7 +88,8 @@ class ClassificationTrainer(BaseTrainer):
 
                 eval_metrics = (
                     self.validate(model, eval_dataloader)
-                    if eval_dataloader and (epoch + 1) % self.validate_every_n_steps == 0
+                    if eval_dataloader
+                    and (epoch + 1) % self.validate_every_n_steps == 0
                     else {}
                 )
 
@@ -93,6 +97,9 @@ class ClassificationTrainer(BaseTrainer):
 
                 if self.record_history:
                     history.append(h_entry)
+
+                if scheduler:
+                    scheduler.step()
 
                 pb.set_postfix(**h_entry.as_postfix())
                 pb.update()

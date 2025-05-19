@@ -24,7 +24,7 @@ class TrainableModule(nn.Module):
     def configure_optimizers(self) -> optim.Optimizer:
         pass
 
-    def configure_scheduller(self) -> Optional[optim.lr_scheduler.LRScheduler]:
+    def configure_scheduler(self) -> Optional[optim.lr_scheduler.LRScheduler]:
         pass
 
 
@@ -52,7 +52,7 @@ class AdamOptimizedModule(TrainableModule):
     def configure_optimizers(self) -> optim.Optimizer:
         return optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
-    def configure_scheduller(
+    def configure_scheduler(
         self, optimizer: optim.Optimizer
     ) -> Optional[optim.lr_scheduler.LRScheduler]:
         if self.scheduler_step_size and self.scheduler_gamma:

@@ -351,7 +351,7 @@ def reduce_depth_with_autoencoder(image, model, trainer, device):
 
 
 def reduce_depth_with_patched_autoencoder(
-    image, patch_size, model, trainers, device, batch_size=128
+    image, patch_size, model, trainer, device, batch_size=128
 ):
     h, w, _ = image.shape
     labels = np.zeros((h, w))
@@ -365,8 +365,7 @@ def reduce_depth_with_patched_autoencoder(
         data.TensorDataset(x_tensor, y_tensor), batch_size=batch_size
     )
 
-    for trainer in trainers:
-        trainer.fit(model, train_loader)
+    trainer.fit(model, train_loader)
 
     encoded, _ = model(x_tensor)
 
