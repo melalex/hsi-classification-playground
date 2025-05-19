@@ -6,7 +6,8 @@ from torch.utils import data
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
 
-from src.util.patches import extract_patches, scale_patched
+from src.util.patches import extract_patches
+from src.util.semi_guided import sample_from_segmentation_matrix_with_zeros
 
 
 def scale_image(image):
@@ -91,8 +92,6 @@ def chooose_train_and_test_point(train_data, test_data, true_data, num_classes):
     )
 
 
-# -------------------------------------------------------------------------------
-# 边界拓展：镜像
 def mirror_hsi(input_normalize, patch=5):
     height, width, band = input_normalize.shape
 
@@ -100,37 +99,29 @@ def mirror_hsi(input_normalize, patch=5):
     mirror_hsi = np.zeros(
         (height + 2 * padding, width + 2 * padding, band), dtype=float
     )
-    # 中心区域
+
     mirror_hsi[padding : (padding + height), padding : (padding + width), :] = (
         input_normalize
     )
-    # 左边镜像
+
     for i in range(padding):
         mirror_hsi[padding : (height + padding), i, :] = input_normalize[
             :, padding - i - 1, :
         ]
-    # 右边镜像
+
     for i in range(padding):
         mirror_hsi[padding : (height + padding), width + padding + i, :] = (
             input_normalize[:, width - 1 - i, :]
         )
-    # 上边镜像
+
     for i in range(padding):
         mirror_hsi[i, :, :] = mirror_hsi[padding * 2 - i - 1, :, :]
-    # 下边镜像
+
     for i in range(padding):
         mirror_hsi[height + padding + i, :, :] = mirror_hsi[
             height + padding - 1 - i, :, :
         ]
 
-    print("**************************************************")
-    print("patch is : {}".format(patch))
-    print(
-        "mirror_image shape : [{0},{1},{2}]".format(
-            mirror_hsi.shape[0], mirror_hsi.shape[1], mirror_hsi.shape[2]
-        )
-    )
-    print("**************************************************")
     return mirror_hsi
 
 
@@ -312,16 +303,6 @@ def reduce_depth_with_pca(input, n_components):
     return pca, reduced_image
 
 
-def pad_image(image, margin):
-    return np.pad(image, ((margin, margin), (margin, margin), (0, 0)), mode="reflect")
-
-
-def pad_tensor(image, margin):
-    image = image.permute(2, 0, 1)
-    padded = F.pad(image, pad=(margin, margin, margin, margin), mode="reflect")
-    return padded.permute(1, 2, 0)
-
-
 def extract_patches(image, labels, patch_size=5):
     return extract_image_patches(image, patch_size), extract_label_patches(labels)
 
@@ -331,8 +312,7 @@ def extract_label_patches(labels):
 
 
 def extract_image_patches(image, patch_size=5):
-    margin = patch_size // 2
-    padded_image = pad_image(image, margin)
+    padded_image = mirror_hsi(image, patch_size)
 
     x = []
     h, w, _ = image.shape
@@ -345,20 +325,27 @@ def extract_image_patches(image, patch_size=5):
     return np.array(x)
 
 
-def extract_tensor_patches(image, patch_size=5):
-    margin = patch_size // 2
-    padded_image = pad_tensor(image, margin)
+def extract_band_patches(x, band_patch=3):
+    _, patch, patch, band = x.shape
 
-    x = []
-    h, w, _ = image.shape
+    return gain_neighborhood_band(x, band, band_patch, patch)
 
-    for i in range(h):
-        for j in range(w):
-            patch = padded_image[i : i + patch_size, j : j + patch_size, :]
-            x.append(patch)
+def train_test_band_patch_split(x, y, examples_per_class):
+    y_masked = sample_from_segmentation_matrix_with_zeros(y, examples_per_class)
+    mask = y_masked > -1
 
-    return torch.stack(x)
+    x_train = x[mask, :, :]
+    y_train = y[mask]
+    x_test = x[~mask, :, :]
+    y_test = y[~mask]
 
+    return (
+        x_train,
+        y_train,
+        x_test,
+        y_test,
+        y_masked,
+    )
 
 def slice_and_patch(image, patch_size=5, splits=4):
     splitted = np.array_split(image, splits, axis=2)

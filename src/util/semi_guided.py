@@ -169,7 +169,7 @@ def sample_from_segmentation_matrix_with_zeros(source, examples_per_class):
         it = source[i]
         examples_count_i = it
 
-        if examples_count[examples_count_i] < examples_per_class:
+        if result[i] == -1 and examples_count[examples_count_i] < examples_per_class[examples_count_i]:
             examples_count[examples_count_i] = examples_count[examples_count_i] + 1
             result[i] = it
 
@@ -179,7 +179,11 @@ def sample_from_segmentation_matrix_with_zeros(source, examples_per_class):
 
 
 def mask_patched(x, y, examples_per_class, device):
-    y_masked = sample_from_segmentation_matrix_with_zeros(y, examples_per_class)
+    num_classes = len(np.unique(y))
+
+    y_masked = sample_from_segmentation_matrix_with_zeros(
+        y, np.repeat(examples_per_class, num_classes)
+    )
     mask = y_masked > -1
 
     x_labeled = x[mask, :, :, :]

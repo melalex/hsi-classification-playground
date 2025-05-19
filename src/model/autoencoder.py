@@ -1,8 +1,5 @@
 from torch import nn
 
-from src.util.patches import extract_tensor_patches
-
-
 ACTIVATIONS = {
     "relu": nn.ReLU(),
     "linear": nn.Identity(),
