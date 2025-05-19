@@ -26,11 +26,13 @@ class ClassificationTrainer(BaseTrainer):
         criterion: nn.Module,
         device: torch.device,
         record_history: bool = True,
+        validate_every_n_steps: int = 1,
     ):
         self.num_epochs = num_epochs
         self.record_history = record_history
         self.criterion = criterion
         self.device = device
+        self.validate_every_n_steps = validate_every_n_steps
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -50,11 +52,15 @@ class ClassificationTrainer(BaseTrainer):
         eval_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
         optimizer = model.configure_optimizers()
+        scheduler = model.configure_scheduller(optimizer)
 
         history = []
 
         with create_progress_bar()(total=self.num_epochs) as pb:
-            for _ in range(self.num_epochs):
+            for epoch in range(self.num_epochs):
+                if scheduler:
+                    scheduler.step()
+
                 model.train()
 
                 train_total_loss = 0
@@ -78,7 +84,9 @@ class ClassificationTrainer(BaseTrainer):
                 train_metrics = {"train_loss": epoch_loss}
 
                 eval_metrics = (
-                    self.validate(model, eval_dataloader) if eval_dataloader else {}
+                    self.validate(model, eval_dataloader)
+                    if eval_dataloader and (epoch + 1) % self.validate_every_n_steps == 0
+                    else {}
                 )
 
                 h_entry = TrainerHistoryEntry(train_metrics, eval_metrics)

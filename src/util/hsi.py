@@ -9,6 +9,217 @@ from sklearn.discriminant_analysis import StandardScaler
 from src.util.patches import extract_patches
 from src.util.semi_guided import sample_from_segmentation_matrix_with_zeros
 
+MAX_ITER = 10_000_000
+
+
+def value_counts_array(arr, num_classes):
+    counts = np.zeros(num_classes, dtype=int)
+    for val in arr:
+        if val != 0:
+            counts[val - 1] += 1
+    return counts
+
+
+def value_counts_array_with_zeros(arr, num_classes):
+    counts = np.zeros(num_classes, dtype=int)
+    for val in arr:
+        counts[val] += 1
+    return counts
+
+
+def sample_fraction_from_segmentation(source, fraction_of_examples):
+    source_arr = source.reshape(-1)
+    result = sample_fraction_from_segmentation_vector(source_arr, fraction_of_examples)
+
+    return result.reshape(source.shape)
+
+
+def sample_fraction_from_segmentation_vector(source, fraction_of_examples):
+    if fraction_of_examples == 1:
+        return source
+
+    len_source = len(source)
+    num_classes = len(np.unique(source)) - 1
+    examples_per_class = (
+        value_counts_array(source, num_classes) * fraction_of_examples
+    ).astype(int)
+    examples_count = np.zeros(num_classes)
+    result = np.zeros(source.shape)
+    iter_count = 0
+
+    while np.all(examples_count < examples_per_class):
+        if iter_count > MAX_ITER:
+            raise RuntimeError("Max number of iterations exceeded")
+
+        i = np.random.randint(low=0, high=len_source)
+        it = source[i]
+        examples_count_i = it - 1
+
+        if (
+            it > 0
+            and examples_count[examples_count_i] < examples_per_class[examples_count_i]
+            and result[i] == 0
+        ):
+            examples_count[examples_count_i] += 1
+            result[i] = it
+
+        iter_count += 1
+
+    return result
+
+
+def sample_fraction_from_segmentation_vector_with_zeros(source, fraction_of_examples):
+    if fraction_of_examples == 1:
+        return source
+
+    len_source = len(source)
+    num_classes = len(np.unique(source))
+    examples_per_class = (
+        value_counts_array_with_zeros(source, num_classes) * fraction_of_examples
+    ).astype(int)
+    examples_count = np.zeros(num_classes)
+    result = np.full(source.shape, -1)
+    iter_count = 0
+
+    while np.all(examples_count < examples_per_class):
+        if iter_count > MAX_ITER / 20:
+            raise RuntimeError("Max number of iterations exceeded")
+
+        i = np.random.randint(low=0, high=len_source)
+        it = source[i]
+        examples_count_i = it
+
+        if (
+            examples_count[examples_count_i] < examples_per_class[examples_count_i]
+            and result[i] == -1
+        ):
+            examples_count[examples_count_i] += 1
+            result[i] = it
+
+        iter_count += 1
+
+    return result
+
+
+def sample_from_segmentation_matrix(source, examples_per_class):
+    source_arr = source.reshape(-1)
+    len_source = len(source_arr)
+    num_classes = len(np.unique(source_arr)) - 1
+    examples_count = np.zeros(num_classes)
+    result = np.zeros(len_source)
+    iter_count = 0
+
+    while not np.all(examples_count == examples_per_class):
+        if iter_count > MAX_ITER:
+            raise RuntimeError("Max number of iterations exceeded")
+
+        i = np.random.randint(low=0, high=len_source)
+        it = source_arr[i]
+        examples_count_i = it - 1
+
+        if it > 0 and examples_count[examples_count_i] < examples_per_class:
+            examples_count[examples_count_i] = examples_count[examples_count_i] + 1
+            result[i] = it
+
+        iter_count += 1
+
+    return result.reshape(source.shape)
+
+
+def mask_patched_fraction(x, y, fraction_of_examples, device):
+    y_masked = sample_fraction_from_segmentation_vector_with_zeros(
+        y, fraction_of_examples
+    )
+    mask = y_masked > -1
+
+    x_labeled = x[mask, :, :, :]
+    y_labeled = y[mask]
+    x_unlabeled = x[~mask, :, :, :]
+    y_unlabeled = y[~mask]
+
+    x_full_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(
+        0, 3, 1, 2
+    )
+    y_full_tensor = torch.tensor(y, dtype=torch.long, device=device)
+    x_labeled_tensor = torch.tensor(
+        x_labeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long, device=device)
+    x_unlabeled_tensor = torch.tensor(
+        x_unlabeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_unlabeled_tensor = torch.tensor(y_unlabeled, dtype=torch.long, device=device)
+
+    return (
+        data.TensorDataset(x_full_tensor, y_full_tensor),
+        data.TensorDataset(x_labeled_tensor, y_labeled_tensor),
+        data.TensorDataset(x_unlabeled_tensor, y_unlabeled_tensor),
+        y_masked,
+    )
+
+
+def sample_from_segmentation_matrix_with_zeros(source, examples_per_class):
+    len_source = len(source)
+    num_classes = len(np.unique(source))
+    examples_count = np.zeros(num_classes)
+    result = np.full(len_source, -1)
+    iter_count = 0
+
+    while not np.all(examples_count == examples_per_class):
+        if iter_count > MAX_ITER:
+            raise RuntimeError(
+                f"Max number of iterations exceeded. Examples count: {examples_count}"
+            )
+
+        i = np.random.randint(low=0, high=len_source)
+        it = source[i]
+        examples_count_i = it
+
+        if (
+            result[i] == -1
+            and examples_count[examples_count_i] < examples_per_class[examples_count_i]
+        ):
+            examples_count[examples_count_i] = examples_count[examples_count_i] + 1
+            result[i] = it
+
+        iter_count += 1
+
+    return result
+
+
+def mask_patched(x, y, examples_per_class, device):
+    num_classes = len(np.unique(y))
+
+    y_masked = sample_from_segmentation_matrix_with_zeros(
+        y, np.repeat(examples_per_class, num_classes)
+    )
+    mask = y_masked > -1
+
+    x_labeled = x[mask, :, :, :]
+    y_labeled = y[mask]
+    x_unlabeled = x[~mask, :, :, :]
+    y_unlabeled = y[~mask]
+
+    x_full_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(
+        0, 3, 1, 2
+    )
+    y_full_tensor = torch.tensor(y, dtype=torch.long, device=device)
+    x_labeled_tensor = torch.tensor(
+        x_labeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long, device=device)
+    x_unlabeled_tensor = torch.tensor(
+        x_unlabeled, dtype=torch.float32, device=device
+    ).permute(0, 3, 1, 2)
+    y_unlabeled_tensor = torch.tensor(y_unlabeled, dtype=torch.long, device=device)
+
+    return (
+        data.TensorDataset(x_full_tensor, y_full_tensor),
+        data.TensorDataset(x_labeled_tensor, y_labeled_tensor),
+        data.TensorDataset(x_unlabeled_tensor, y_unlabeled_tensor),
+        y_masked,
+    )
+
 
 def scale_image(image):
     h, w, c = image.shape
@@ -38,58 +249,6 @@ def normalize_hsi(input):
         )
 
     return input_normalize
-
-
-# 定位训练和测试样本
-def chooose_train_and_test_point(train_data, test_data, true_data, num_classes):
-    number_train = []
-    pos_train = {}
-    number_test = []
-    pos_test = {}
-    number_true = []
-    pos_true = {}
-    # -------------------------for train data------------------------------------
-    for i in range(num_classes):
-        each_class = []
-        each_class = np.argwhere(train_data == (i + 1))
-        number_train.append(each_class.shape[0])
-        pos_train[i] = each_class
-
-    total_pos_train = pos_train[0]
-    for i in range(1, num_classes):
-        total_pos_train = np.r_[total_pos_train, pos_train[i]]  # (695,2)
-    total_pos_train = total_pos_train.astype(int)
-    # --------------------------for test data------------------------------------
-    for i in range(num_classes):
-        each_class = []
-        each_class = np.argwhere(test_data == (i + 1))
-        number_test.append(each_class.shape[0])
-        pos_test[i] = each_class
-
-    total_pos_test = pos_test[0]
-    for i in range(1, num_classes):
-        total_pos_test = np.r_[total_pos_test, pos_test[i]]  # (9671,2)
-    total_pos_test = total_pos_test.astype(int)
-    # --------------------------for true data------------------------------------
-    for i in range(num_classes + 1):
-        each_class = []
-        each_class = np.argwhere(true_data == i)
-        number_true.append(each_class.shape[0])
-        pos_true[i] = each_class
-
-    total_pos_true = pos_true[0]
-    for i in range(1, num_classes + 1):
-        total_pos_true = np.r_[total_pos_true, pos_true[i]]
-    total_pos_true = total_pos_true.astype(int)
-
-    return (
-        total_pos_train,
-        total_pos_test,
-        total_pos_true,
-        number_train,
-        number_test,
-        number_true,
-    )
 
 
 def mirror_hsi(input_normalize, patch=5):
@@ -125,15 +284,6 @@ def mirror_hsi(input_normalize, patch=5):
     return mirror_hsi
 
 
-# -------------------------------------------------------------------------------
-# 获取patch的图像数据
-def gain_neighborhood_pixel(mirror_image, point, i, patch=5):
-    x = point[i, 0]
-    y = point[i, 1]
-    temp_image = mirror_image[x : (x + patch), y : (y + patch), :]
-    return temp_image
-
-
 def gain_neighborhood_band(x_train, band, band_patch, patch=5):
     nn = band_patch // 2
     pp = (patch * patch) // 2
@@ -141,9 +291,9 @@ def gain_neighborhood_band(x_train, band, band_patch, patch=5):
     x_train_band = np.zeros(
         (x_train.shape[0], patch * patch * band_patch, band), dtype=float
     )
-    # 中心区域
+
     x_train_band[:, nn * patch * patch : (nn + 1) * patch * patch, :] = x_train_reshape
-    # 左边镜像
+
     for i in range(nn):
         if pp > 0:
             x_train_band[:, i * patch * patch : (i + 1) * patch * patch, : i + 1] = (
@@ -159,7 +309,7 @@ def gain_neighborhood_band(x_train, band, band_patch, patch=5):
             x_train_band[:, i : (i + 1), (nn - i) :] = x_train_reshape[
                 :, 0:1, : (band - nn + i)
             ]
-    # 右边镜像
+
     for i in range(nn):
         if pp > 0:
             x_train_band[
@@ -180,74 +330,6 @@ def gain_neighborhood_band(x_train, band, band_patch, patch=5):
                 x_train_reshape[:, 0:1, (i + 1) :]
             )
     return x_train_band
-
-
-# -------------------------------------------------------------------------------
-# 汇总训练数据和测试数据
-def train_and_test_data(
-    mirror_image, train_point, test_point, true_point, patch=5, band_patch=3
-):
-    _, _, band = mirror_image.shape
-    x_train = np.zeros((train_point.shape[0], patch, patch, band), dtype=float)
-    x_test = np.zeros((test_point.shape[0], patch, patch, band), dtype=float)
-    x_true = np.zeros((true_point.shape[0], patch, patch, band), dtype=float)
-    for i in range(train_point.shape[0]):
-        x_train[i, :, :, :] = gain_neighborhood_pixel(
-            mirror_image, train_point, i, patch
-        )
-    for j in range(test_point.shape[0]):
-        x_test[j, :, :, :] = gain_neighborhood_pixel(mirror_image, test_point, j, patch)
-    for k in range(true_point.shape[0]):
-        x_true[k, :, :, :] = gain_neighborhood_pixel(mirror_image, true_point, k, patch)
-    print("x_train shape = {}, type = {}".format(x_train.shape, x_train.dtype))
-    print("x_test  shape = {}, type = {}".format(x_test.shape, x_test.dtype))
-    print("x_true  shape = {}, type = {}".format(x_true.shape, x_test.dtype))
-    print("**************************************************")
-
-    x_train_band = gain_neighborhood_band(x_train, band, band_patch, patch)
-    x_test_band = gain_neighborhood_band(x_test, band, band_patch, patch)
-    x_true_band = gain_neighborhood_band(x_true, band, band_patch, patch)
-    print(
-        "x_train_band shape = {}, type = {}".format(
-            x_train_band.shape, x_train_band.dtype
-        )
-    )
-    print(
-        "x_test_band  shape = {}, type = {}".format(
-            x_test_band.shape, x_test_band.dtype
-        )
-    )
-    print(
-        "x_true_band  shape = {}, type = {}".format(
-            x_true_band.shape, x_true_band.dtype
-        )
-    )
-    print("**************************************************")
-    return x_train_band, x_test_band, x_true_band
-
-
-# -------------------------------------------------------------------------------
-# 标签y_train, y_test
-def train_and_test_label(number_train, number_test, number_true, num_classes):
-    y_train = []
-    y_test = []
-    y_true = []
-    for i in range(num_classes):
-        for j in range(number_train[i]):
-            y_train.append(i)
-        for k in range(number_test[i]):
-            y_test.append(i)
-    for i in range(num_classes + 1):
-        for j in range(number_true[i]):
-            y_true.append(i)
-    y_train = np.array(y_train)
-    y_test = np.array(y_test)
-    y_true = np.array(y_true)
-    print("y_train: shape = {} ,type = {}".format(y_train.shape, y_train.dtype))
-    print("y_test: shape = {} ,type = {}".format(y_test.shape, y_test.dtype))
-    print("y_true: shape = {} ,type = {}".format(y_true.shape, y_true.dtype))
-    print("**************************************************")
-    return y_train, y_test, y_true
 
 
 def reduce_depth_with_autoencoder(image, model, trainer, device):
@@ -330,6 +412,7 @@ def extract_band_patches(x, band_patch=3):
 
     return gain_neighborhood_band(x, band, band_patch, patch)
 
+
 def train_test_band_patch_split(x, y, examples_per_class):
     y_masked = sample_from_segmentation_matrix_with_zeros(y, examples_per_class)
     mask = y_masked > -1
@@ -346,6 +429,7 @@ def train_test_band_patch_split(x, y, examples_per_class):
         y_test,
         y_masked,
     )
+
 
 def slice_and_patch(image, patch_size=5, splits=4):
     splitted = np.array_split(image, splits, axis=2)
