@@ -25,14 +25,14 @@ class ClassificationTrainer(BaseTrainer):
         device: torch.device,
         record_history: bool = True,
         validate_every_n_steps: int = 1,
-        gradient_accumulation_steps: int = 1,  
+        gradient_accumulation_steps: int = 1,
     ):
         self.num_epochs = num_epochs
         self.record_history = record_history
         self.criterion = criterion
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
-        self.gradient_accumulation_steps = gradient_accumulation_steps  
+        self.gradient_accumulation_steps = gradient_accumulation_steps
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -69,12 +69,10 @@ class ClassificationTrainer(BaseTrainer):
 
                     y_pred = model(x)
                     loss = self.criterion(y_pred, y_true)
-                    loss = loss / self.gradient_accumulation_steps 
+                    loss = loss / self.gradient_accumulation_steps
 
                     loss.backward()
-                    train_total_loss += (
-                        loss.item() * self.gradient_accumulation_steps
-                    ) 
+                    train_total_loss += loss.item() * self.gradient_accumulation_steps
 
                     if (step + 1) % self.gradient_accumulation_steps == 0 or (
                         step + 1
@@ -124,6 +122,26 @@ class ClassificationTrainer(BaseTrainer):
                 result_y.append(y_pred)
 
         return result_x, result_y
+
+    def predict_labeled(
+        self, model: nn.Module, dataloader: DataLoader
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        model.eval()
+
+        all_y_true = []
+        all_y_pred = []
+
+        with torch.no_grad():
+            for x, y in dataloader:
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                y_pred = model(x)
+
+                all_y_true.append(y)
+                all_y_pred.append(y_pred)
+
+        return all_y_true, all_y_pred
 
     def validate(self, model: nn.Module, dataloader: DataLoader) -> dict[str, float]:
         model.eval()

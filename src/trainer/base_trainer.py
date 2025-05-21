@@ -1,6 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import Optional
+import torch
 from torch.utils import data
 from torch import nn, Tensor, optim
 
@@ -78,6 +79,9 @@ class BaseTrainer(ABC):
     def predict(
         self, model: nn.Module, dataloader: data.DataLoader
     ) -> tuple[list[Tensor], list[Tensor]]:
+        pass
+
+    def predict_labeled(self, model: nn.Module, dataloader: data.DataLoader)  -> tuple[list[Tensor], list[Tensor]]:
         pass
 
     def validate(
