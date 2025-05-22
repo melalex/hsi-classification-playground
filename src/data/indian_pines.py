@@ -1,15 +1,15 @@
+import numpy as np
 import scipy.io
 import torch
 
 from torch.utils.data import TensorDataset
 
 from src.definitions import EXTERNAL_DATA_FOLDER
-from src.util.image import scale_image
+from src.util.hsi import extract_patches, scale_image, scale_patched
 from src.util.kaggle import download_and_unzip
-from src.util.patches import extract_patches, scale_patched
 
 
-def load_indian_pines(dest=EXTERNAL_DATA_FOLDER):
+def load_indian_pines(dest=EXTERNAL_DATA_FOLDER) -> tuple[np.ndarray, np.ndarray]:
     ds_path = download_and_unzip(
         "sciencelabwork", "hyperspectral-image-sensing-dataset-ground-truth", dest
     )

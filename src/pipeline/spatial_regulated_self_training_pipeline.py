@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 from torchmetrics import Accuracy, CohenKappa, F1Score
 
-from src.definitions import CACHE_FOLDER
 from src.pipeline.common import (
     Clustering,
     FeatureExtractor,
@@ -15,8 +14,7 @@ from src.pipeline.common import (
     introduce_spatial_constraint,
     merge_clustering_results,
 )
-from src.util.image import scale_image
-from src.util.patches import extract_label_patches, slice_and_patch
+from src.util.hsi import extract_label_patches, scale_image, slice_and_patch
 from src.util.progress_bar import create_progress_bar
 
 

@@ -1,15 +1,121 @@
+from enum import Enum
 import numpy as np
 import torch
-import torch.nn.functional as F
 
+from torch import nn
 from torch.utils import data
-from sklearn.decomposition import PCA
+from sklearn.decomposition import NMF, PCA, FactorAnalysis, TruncatedSVD
 from sklearn.discriminant_analysis import StandardScaler
 
-from src.util.patches import extract_patches
-from src.util.semi_guided import sample_from_segmentation_matrix_with_zeros
+from src.model.autoencoder import (
+    AsymmetricPointWiseAutoEncoder,
+    SpatialAutoEncoder,
+    SymmetricPointWiseAutoEncoder,
+)
+from src.trainer.autoencoder_trainer import AutoEncoderTrainer
+from src.trainer.base_trainer import AdamOptimizedModule, TrainableModule
 
 MAX_ITER = 10_000_000
+
+
+class PreProcessType(Enum):
+    STANDARTIZATION = 1
+    NORMALIZATION = 2
+    NOPE = 3
+
+
+class DimReductionType(Enum):
+    PCA = 1
+    FA = 2
+    SVD = 3
+    NMF = 4
+    SPARTIAL_AUTOENCODER = 5
+    SYMETRIC_POINTWISE_AUTOENCODER = 6
+    ASYMETRIC_POINTWISE_AUTOENCODER = 7
+    NOPE = 8
+
+
+def reduce_hsi_dim(
+    image: np.ndarray,
+    out_dim: int,
+    alg: DimReductionType,
+    device: torch.device,
+    random_state: int = 42,
+    auto_encoder_epochs: int = 100,
+    auto_encoder_lr: float = 1e-3,
+) -> np.array:
+    _, _, c = image.shape
+
+    if c == out_dim or alg == DimReductionType.NOPE:
+        return None, c, image
+    elif alg == DimReductionType.PCA:
+        return reduce_depth_with_pca(image, out_dim, random_state)
+    elif alg == DimReductionType.FA:
+        return reduce_depth_with_fa(image, out_dim, random_state)
+    elif alg == DimReductionType.SVD:
+        return reduce_depth_with_svd(image, out_dim, random_state)
+    elif alg == DimReductionType.NMF:
+        return reduce_depth_with_nmf(image, out_dim, random_state)
+    elif alg == DimReductionType.SPARTIAL_AUTOENCODER:
+        model = AdamOptimizedModule(
+            SpatialAutoEncoder(input_channels=c, embedding_size=out_dim),
+            lr=auto_encoder_lr,
+        )
+        return (
+            model,
+            out_dim,
+            reduce_depth_with_patched_autoencoder(
+                image=image,
+                patch_size=9,
+                model=model,
+                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
+                batch_size=64,
+            ),
+        )
+    elif alg == DimReductionType.SYMETRIC_POINTWISE_AUTOENCODER:
+        model = AdamOptimizedModule(
+            SymmetricPointWiseAutoEncoder(units=[c, 150, 100, out_dim]),
+            lr=auto_encoder_lr,
+        )
+        return (
+            model,
+            out_dim,
+            reduce_depth_with_patched_autoencoder(
+                image=image,
+                patch_size=9,
+                model=model,
+                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
+                batch_size=64,
+            ),
+        )
+    elif alg == DimReductionType.ASYMETRIC_POINTWISE_AUTOENCODER:
+        model = AdamOptimizedModule(
+            AsymmetricPointWiseAutoEncoder(
+                encoder_units_def=[c, 150, 100, out_dim],
+                decoder_units_def=[out_dim, c],
+            ),
+            lr=auto_encoder_lr,
+        )
+        return (
+            model,
+            out_dim,
+            reduce_depth_with_patched_autoencoder(
+                image=image,
+                patch_size=9,
+                model=model,
+                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
+                batch_size=64,
+            ),
+        )
+
+
+def preprocess_hsi(image: np.ndarray, alg: PreProcessType) -> tuple[object, np.ndarray]:
+    if alg == PreProcessType.NOPE:
+        return None, image
+    elif alg == PreProcessType.STANDARTIZATION:
+        return scale_image(image)
+    elif alg == PreProcessType.NORMALIZATION:
+        return None, normalize_hsi(image)
 
 
 def value_counts_array(arr, num_classes):
@@ -351,15 +457,21 @@ def reduce_depth_with_autoencoder(image, model, trainer, device):
 
 
 def reduce_depth_with_patched_autoencoder(
-    image, patch_size, model, trainer, device, batch_size=128
+    image,
+    patch_size: int,
+    model: TrainableModule,
+    trainer: AutoEncoderTrainer,
+    batch_size: int = 128,
 ):
     h, w, _ = image.shape
     labels = np.zeros((h, w))
 
     x, y = extract_patches(image, labels, patch_size=patch_size)
 
-    x_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(0, 3, 1, 2)
-    y_tensor = torch.tensor(y, dtype=torch.long, device=device)
+    x_tensor = torch.tensor(x, dtype=torch.float32, device=trainer.device).permute(
+        0, 3, 1, 2
+    )
+    y_tensor = torch.tensor(y, dtype=torch.long, device=trainer.device)
 
     train_loader = data.DataLoader(
         data.TensorDataset(x_tensor, y_tensor), batch_size=batch_size
@@ -372,16 +484,36 @@ def reduce_depth_with_patched_autoencoder(
     return encoded.reshape(h, w, -1).detach().cpu().numpy()
 
 
-def reduce_depth_with_pca(input, n_components):
-    h, w, c = input.shape
-    reshaped_data = input.reshape(c, -1).T
+def reduce_depth_with_pca(input, n_components, random_state=42):
+    new_x = np.reshape(input, (-1, input.shape[2]))
+    alg = PCA(n_components=n_components, whiten=True, random_state=random_state)
+    new_x = alg.fit_transform(new_x)
+    new_x = np.reshape(new_x, (input.shape[0], input.shape[1], n_components))
+    return alg, n_components, new_x
 
-    pca = PCA(n_components=n_components)
-    reduced_data = pca.fit_transform(reshaped_data)
 
-    reduced_image = reduced_data.T.reshape(h, w, n_components)
+def reduce_depth_with_fa(input, n_components, random_state=42):
+    new_x = np.reshape(input, (-1, input.shape[2]))
+    alg = FactorAnalysis(n_components=n_components, random_state=random_state)
+    new_x = alg.fit_transform(new_x)
+    new_x = np.reshape(new_x, (input.shape[0], input.shape[1], n_components))
+    return alg, n_components, new_x
 
-    return pca, reduced_image
+
+def reduce_depth_with_svd(input, n_components, random_state=42):
+    new_x = np.reshape(input, (-1, input.shape[2]))
+    alg = TruncatedSVD(n_components=n_components, random_state=random_state)
+    new_x = alg.fit_transform(new_x)
+    new_x = np.reshape(new_x, (input.shape[0], input.shape[1], n_components))
+    return alg, n_components, new_x
+
+
+def reduce_depth_with_nmf(input, n_components, random_state=42):
+    new_x = np.reshape(input, (-1, input.shape[2]))
+    alg = NMF(n_components=n_components, random_state=random_state)
+    new_x = alg.fit_transform(new_x)
+    new_x = np.reshape(new_x, (input.shape[0], input.shape[1], n_components))
+    return alg, n_components, new_x
 
 
 def extract_patches(image, labels, patch_size=5):

@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from src.definitions import CACHE_FOLDER
-from src.model.fully_convolutional_lenet import FullyConvolutionalLeNet
+from src.model.lenet import FullyConvolutionalLeNet
 from src.model.grid_search import GridSearchAdapter
 from src.pipeline.common import (
     CnnFeatureExtractor,
