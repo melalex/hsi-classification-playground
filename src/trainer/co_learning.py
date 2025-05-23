@@ -9,6 +9,7 @@ from src.data.dataset_decorator import LabeledDatasetDecorator
 from src.model.democratic_model import DemocraticModel
 from src.trainer.base_trainer import BaseTrainer, TrainableModule, TrainerFeedback
 from src.util.progress_bar import create_progress_bar
+from src.util.torch import dataloader_from_prtototype
 
 
 class DemocraticCoLearningTrainer:
@@ -203,7 +204,7 @@ class DemocraticCoLearningTrainer:
                     majority_vote[indecies_to_add],
                 )
 
-                dataloader = self.__to_dataloader(
+                dataloader = dataloader_from_prtototype(
                     data.ConcatDataset([old_ds, new_ds]), dataloader
                 )
 
@@ -224,25 +225,3 @@ class DemocraticCoLearningTrainer:
         result_weight = [w for w in weights if w > 0.5]
 
         return DemocraticModel(result_models, result_weight)
-
-    def __to_dataloader(
-        self, ds: data.Dataset, dataloader: data.DataLoader
-    ) -> data.DataLoader:
-        return data.DataLoader(
-            dataset=ds,
-            batch_size=dataloader.batch_size,
-            shuffle=True,
-            sampler=dataloader.sampler,
-            batch_sampler=dataloader.batch_sampler,
-            num_workers=dataloader.num_workers,
-            collate_fn=dataloader.collate_fn,
-            pin_memory=dataloader.pin_memory,
-            drop_last=dataloader.drop_last,
-            timeout=dataloader.timeout,
-            worker_init_fn=dataloader.worker_init_fn,
-            multiprocessing_context=dataloader.multiprocessing_context,
-            generator=dataloader.generator,
-            prefetch_factor=dataloader.prefetch_factor,
-            persistent_workers=dataloader.persistent_workers,
-            pin_memory_device=dataloader.pin_memory_device,
-        )

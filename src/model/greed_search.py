@@ -104,7 +104,7 @@ class GreedSearch[M]:
                     low_score = next_to_mid_score
 
                     postfix["low"] = low
-                    postfix["low_score"] = low_score[optimize]
+                    postfix["low_score"] = low_score[-1][optimize]
 
                     self.__log_result(split, low_params, low_score)
                 else:
@@ -114,7 +114,7 @@ class GreedSearch[M]:
                     high_score = mid_score
 
                     postfix["high"] = high
-                    postfix["high_score"] = high_score[optimize]
+                    postfix["high_score"] = high_score[-1][optimize]
 
                     self.__log_result(split, high_params, high_score)
 

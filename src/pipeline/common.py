@@ -108,7 +108,7 @@ class FlatteningFeatureExtractor(FeatureExtractor):
 
 class Clustering(ABC):
 
-    def cluster(self, num_clusters, x):
+    def cluster(self, num_clusters: int, x: np.ndarray):
         pass
 
 
@@ -118,7 +118,7 @@ class KMeansClustering(Clustering):
         self.seed = seed
         self.n_init = n_init
 
-    def cluster(self, num_clusters, x):
+    def cluster(self, num_clusters: int, x: np.ndarray):
         return KMeans(
             n_clusters=num_clusters, n_init=self.n_init, random_state=self.seed
         ).fit_predict(x)

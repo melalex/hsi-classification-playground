@@ -109,7 +109,7 @@ class AutoEncoderTrainer(BaseTrainer):
 
     def predict_labeled(
         self, model: nn.Module, dataloader: DataLoader
-    ) -> tuple[list[Tensor], list[Tensor]]:
+    ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
         raise NotImplementedError(
             "predict_labeled is not implemented for AutoEncoderTrainer"
         )

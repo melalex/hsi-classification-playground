@@ -125,9 +125,10 @@ class ClassificationTrainer(BaseTrainer):
 
     def predict_labeled(
         self, model: nn.Module, dataloader: DataLoader
-    ) -> tuple[list[Tensor], list[Tensor]]:
+    ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
         model.eval()
 
+        all_x = []
         all_y_true = []
         all_y_pred = []
 
@@ -138,10 +139,11 @@ class ClassificationTrainer(BaseTrainer):
 
                 y_pred = model(x)
 
+                all_x.append(x)
                 all_y_true.append(y)
                 all_y_pred.append(y_pred)
 
-        return all_y_true, all_y_pred
+        return all_x, all_y_true, all_y_pred
 
     def validate(self, model: nn.Module, dataloader: DataLoader) -> dict[str, float]:
         model.eval()

@@ -81,7 +81,9 @@ class BaseTrainer(ABC):
     ) -> tuple[list[Tensor], list[Tensor]]:
         pass
 
-    def predict_labeled(self, model: nn.Module, dataloader: data.DataLoader)  -> tuple[list[Tensor], list[Tensor]]:
+    def predict_labeled(
+        self, model: nn.Module, dataloader: data.DataLoader
+    ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
         pass
 
     def validate(
