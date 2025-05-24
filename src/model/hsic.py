@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 from torch import optim, nn
 import lightning as L
@@ -5,6 +6,15 @@ import torch
 from torchmetrics import CohenKappa
 from torchmetrics.classification import F1Score
 from torchmetrics.classification import Accuracy
+
+
+@dataclass
+class HyperSpectralImageClassifierMetrics:
+    loss: Optional[float] = None
+    f1: Optional[float] = None
+    overall_accuracy: Optional[float] = None
+    average_accuracy: Optional[float] = None
+    kappa: Optional[float] = None
 
 
 class HyperSpectralImageClassifier(L.LightningModule):
@@ -24,6 +34,8 @@ class HyperSpectralImageClassifier(L.LightningModule):
         self.net = net
         self.scheduler_step_size = scheduler_step_size
         self.scheduler_gamma = scheduler_gamma
+        self.train_metrics = []
+        self.val_metrics = []
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -83,6 +95,28 @@ class HyperSpectralImageClassifier(L.LightningModule):
             "val_average_accuracy": average_accuracy,
             "val_kappa": kappa,
         }
+
+    def on_train_epoch_end(self):
+        self.train_metrics.append(
+            HyperSpectralImageClassifierMetrics(
+                loss=self.trainer.callback_metrics.get("loss")
+            )
+        )
+
+    def on_validation_epoch_end(self):
+        self.val_metrics.append(
+            HyperSpectralImageClassifierMetrics(
+                loss=self.trainer.callback_metrics.get("val_loss"),
+                f1=self.trainer.callback_metrics.get("val_f1"),
+                overall_accuracy=self.trainer.callback_metrics.get(
+                    "val_overall_accuracy"
+                ),
+                average_accuracy=self.trainer.callback_metrics.get(
+                    "val_average_accuracy"
+                ),
+                kappa=self.trainer.callback_metrics.get("val_kappa"),
+            )
+        )
 
     def configure_optimizers(self):
         optimizer = optim.Adam(

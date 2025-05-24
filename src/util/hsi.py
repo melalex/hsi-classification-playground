@@ -270,7 +270,7 @@ def sample_from_segmentation_matrix_with_zeros(
     source, examples_per_class, cache_folder: Path
 ):
     cache_folder.mkdir(parents=True, exist_ok=True)
-    cache_name = f"mask_{"".join(examples_per_class)}"
+    cache_name = f"mask_{"".join([str(it) for it in examples_per_class])}"
     cache_path = cache_folder / cache_name
 
     if cache_path.exists():

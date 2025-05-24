@@ -9,14 +9,14 @@ from src.definitions import REPORTS_FOLDER
 
 
 def create_model_name(prefix: str, args: list[object]) -> str:
-    return f"{prefix}_{"".join(args)}"
+    return f"{prefix}_{"".join([str(it) for it in args])}"
 
 
 def report_run(
     model_name: str,
     model_category: str,
     run_params: object,
-    run_metrics: object,
+    run_metrics: dict[str, float],
     run_desc: str = "",
     trainer_state: object = None,
     report_path: Path = REPORTS_FOLDER / "runs",
@@ -25,7 +25,6 @@ def report_run(
     full_report_path = report_path / f"{model_name}.csv"
 
     params_json = json.dumps(run_params)
-    metrics_json = json.dumps(run_metrics)
     trainer_json = json.dumps(trainer_state) if trainer_state else None
 
     row = {
@@ -33,8 +32,8 @@ def report_run(
         "model_category": model_category,
         "run_desc": run_desc,
         "params": params_json,
-        "metrics": metrics_json,
         "trainer_state": trainer_json,
+        **run_metrics,
     }
 
     write_header = not full_report_path.exists()
@@ -65,15 +64,21 @@ def read_report_to_show(
     report.drop("trainer_state", axis=1, inplace=True)
 
     if sort_by_metric:
-        report[sort_by_metric] = (
-            report["metrics"].apply(json.loads).apply(lambda it: it[sort_by_metric])
-        )
-
-        report.drop("metrics", axis=1, inplace=True)
-
         report = report.sort_values(by=sort_by_metric, ascending=False)
 
     if model_category:
         report = report[report["model_category"] == model_category]
 
+        report.drop("model_category", axis=1, inplace=True)
+
     return report
+
+def lightning_metrics(metrics):
+    metric = metrics[-1]
+    return {
+        "loss": metric["val_loss"],
+        "f1": metric["val_f1"],
+        "OA": metric["val_overall_accuracy"],
+        "AA": metric["val_average_accuracy"],
+        "kappa": metric["val_kappa"],
+    }

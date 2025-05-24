@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+import numpy as np
+
 
 def group_indices(arr):
     index_groups = defaultdict(list)
@@ -13,6 +15,10 @@ def split(a, n):
     return [a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 
+def smooth_moving_average(data, window_size=5):
+    return np.convolve(data, np.ones(window_size) / window_size, mode="valid")
+
+
 def divide_interval(a: int, b: int, n: int) -> list[tuple[int,]]:
     if n <= 0:
         raise ValueError("Number of subintervals must be positive.")
@@ -21,7 +27,7 @@ def divide_interval(a: int, b: int, n: int) -> list[tuple[int,]]:
 
     if n == 1:
         return [(a, b)]
-    
+
     total_length = b - a + 1
     base_size = total_length // n
     remainder = total_length % n
