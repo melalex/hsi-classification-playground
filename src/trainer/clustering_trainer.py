@@ -55,7 +55,6 @@ class LabelPropagationTrainer:
                 b, _, _, _ = x.shape
                 cluster = self.clustering.cluster(k, x.reshape(b, -1))
 
-                y += 1
                 y = introduce_semantic_constraint(
                     cluster, y, self.num_classes, self.semantic_threshold
                 )
@@ -65,9 +64,8 @@ class LabelPropagationTrainer:
                     self.spatial_constraint_weights,
                     self.spatial_threshold,
                 )
-                y -= 1
 
-                labeled_mask = y > -1
+                labeled_mask = y > 0
 
                 x_labeled = x[labeled_mask, :, :, :]
                 y_labeled = y[labeled_mask]

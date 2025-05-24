@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 import numpy as np
 import torch
 
@@ -7,6 +8,7 @@ from torch.utils import data
 from sklearn.decomposition import NMF, PCA, FactorAnalysis, TruncatedSVD
 from sklearn.discriminant_analysis import StandardScaler
 
+from src.definitions import CACHE_FOLDER
 from src.model.autoencoder import (
     AsymmetricPointWiseAutoEncoder,
     SpatialAutoEncoder,
@@ -19,20 +21,20 @@ MAX_ITER = 10_000_000
 
 
 class PreProcessType(Enum):
-    STANDARTIZATION = 1
-    NORMALIZATION = 2
-    NOPE = 3
+    STANDARTIZATION = "STANDARTIZATION"
+    NORMALIZATION = "NORMALIZATION"
+    NOPE = "NOPE"
 
 
 class DimReductionType(Enum):
-    PCA = 1
-    FA = 2
-    SVD = 3
-    NMF = 4
-    SPARTIAL_AUTOENCODER = 5
-    SYMETRIC_POINTWISE_AUTOENCODER = 6
-    ASYMETRIC_POINTWISE_AUTOENCODER = 7
-    NOPE = 8
+    PCA = "PCA"
+    FA = "FA"
+    SVD = "SVD"
+    NMF = "NMF"
+    SPARTIAL_AUTOENCODER = "SPARTIAL_AUTOENCODER"
+    SYMETRIC_POINTWISE_AUTOENCODER = "SYMETRIC_POINTWISE_AUTOENCODER"
+    ASYMETRIC_POINTWISE_AUTOENCODER = "ASYMETRIC_POINTWISE_AUTOENCODER"
+    NOPE = "NOPE"
 
 
 def reduce_hsi_dim(
@@ -264,7 +266,16 @@ def mask_patched_fraction(x, y, fraction_of_examples, device):
     )
 
 
-def sample_from_segmentation_matrix_with_zeros(source, examples_per_class):
+def sample_from_segmentation_matrix_with_zeros(
+    source, examples_per_class, cache_folder: Path
+):
+    cache_folder.mkdir(parents=True, exist_ok=True)
+    cache_name = f"mask_{"".join(examples_per_class)}"
+    cache_path = cache_folder / cache_name
+
+    if cache_path.exists():
+        return np.load(cache_path)
+
     len_source = len(source)
     num_classes = len(np.unique(source))
     examples_count = np.zeros(num_classes)
@@ -290,41 +301,9 @@ def sample_from_segmentation_matrix_with_zeros(source, examples_per_class):
 
         iter_count += 1
 
+    np.save(cache_path, result)
+
     return result
-
-
-def mask_patched(x, y, examples_per_class, device):
-    num_classes = len(np.unique(y))
-
-    y_masked = sample_from_segmentation_matrix_with_zeros(
-        y, np.repeat(examples_per_class, num_classes)
-    )
-    mask = y_masked > -1
-
-    x_labeled = x[mask, :, :, :]
-    y_labeled = y[mask]
-    x_unlabeled = x[~mask, :, :, :]
-    y_unlabeled = y[~mask]
-
-    x_full_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(
-        0, 3, 1, 2
-    )
-    y_full_tensor = torch.tensor(y, dtype=torch.long, device=device)
-    x_labeled_tensor = torch.tensor(
-        x_labeled, dtype=torch.float32, device=device
-    ).permute(0, 3, 1, 2)
-    y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long, device=device)
-    x_unlabeled_tensor = torch.tensor(
-        x_unlabeled, dtype=torch.float32, device=device
-    ).permute(0, 3, 1, 2)
-    y_unlabeled_tensor = torch.tensor(y_unlabeled, dtype=torch.long, device=device)
-
-    return (
-        data.TensorDataset(x_full_tensor, y_full_tensor),
-        data.TensorDataset(x_labeled_tensor, y_labeled_tensor),
-        data.TensorDataset(x_unlabeled_tensor, y_unlabeled_tensor),
-        y_masked,
-    )
 
 
 def scale_image(image):
@@ -544,8 +523,12 @@ def extract_band_patches(x, band_patch=3):
     return gain_neighborhood_band(x, band, band_patch, patch)
 
 
-def train_test_band_patch_split(x, y, examples_per_class):
-    y_masked = sample_from_segmentation_matrix_with_zeros(y, examples_per_class)
+def train_test_band_patch_split(
+    x, y, examples_per_class, cache_key, cache_folder=CACHE_FOLDER / "y_masked"
+):
+    y_masked = sample_from_segmentation_matrix_with_zeros(
+        y, examples_per_class, cache_folder / cache_key
+    )
     mask = y_masked > -1
 
     x_train = x[mask, :, :]

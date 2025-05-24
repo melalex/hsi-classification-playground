@@ -19,6 +19,19 @@ def plot_epoch_generic(feedback: list[float], desc="Loss", size=(12, 6)):
     plt.show()
 
 
+def plot_epoch_generic_comparison(
+    a: list[float], b: list[float], desc="Loss", size=(12, 6)
+):
+    plt.figure(figsize=size)
+    plt.plot(a, label="Train")
+    plt.plot(b, label="Eval")
+    plt.title(desc)
+    plt.xlabel("Epoch")
+    plt.ylabel(desc)
+    plt.legend()
+    plt.show()
+
+
 def plot_segmentation_comparison(
     ground_truth,
     predicted_labels,

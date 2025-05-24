@@ -27,17 +27,17 @@ def load_indian_pines_v2(dest=EXTERNAL_DATA_FOLDER):
     return x["input"], x["TR"], x["TE"], x["TR"] + x["TE"]
 
 
-def create_indian_pines_dataset(device, dest=EXTERNAL_DATA_FOLDER):
+def create_indian_pines_dataset(dest=EXTERNAL_DATA_FOLDER):
     x, y = load_indian_pines(dest)
 
     scaler, x = scale_image(x)
 
     x_tensor = (
-        torch.tensor(x, dtype=torch.float32, device=device)
+        torch.tensor(x, dtype=torch.float32)
         .unsqueeze(0)
         .permute(0, 3, 1, 2)
     )
-    y_tensor = torch.tensor(y, dtype=torch.long, device=device).unsqueeze(0)
+    y_tensor = torch.tensor(y, dtype=torch.long).unsqueeze(0)
 
     return scaler, TensorDataset(x_tensor, y_tensor)
 
