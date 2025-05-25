@@ -3,11 +3,11 @@ from torch import nn
 
 class FullyConvolutionalLeNet(nn.Module):
 
-    def __init__(self, input_channels, num_classes):
+    def __init__(self, input_channels, num_classes, first_padding=0):
         super(FullyConvolutionalLeNet, self).__init__()
         self.num_classes = num_classes
         self.net = nn.Sequential(
-            nn.Conv2d(input_channels, 100, kernel_size=4),
+            nn.Conv2d(input_channels, 100, kernel_size=4, padding=first_padding),
             nn.BatchNorm2d(100),
             nn.MaxPool2d(kernel_size=2),
             nn.Conv2d(100, 200, kernel_size=2),
