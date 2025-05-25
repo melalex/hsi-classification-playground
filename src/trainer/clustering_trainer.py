@@ -44,7 +44,7 @@ class LabelPropagationTrainer:
         model: TrainableModule,
         x: np.ndarray,
         y: np.ndarray,
-        eval: Optional[data.DataLoader],
+        eval: Optional[data.DataLoader] = None,
     ) -> list[TrainerFeedback]:
         history = []
         original_shape = y.shape
@@ -64,13 +64,16 @@ class LabelPropagationTrainer:
                     self.spatial_constraint_weights,
                     self.spatial_threshold,
                 )
+                y = y.flatten()
 
                 labeled_mask = y > 0
-
-                x_labeled = x[labeled_mask, :, :, :]
+                x_labeled = x[labeled_mask]
                 y_labeled = y[labeled_mask]
 
-                train_ds = data.TensorDataset(Tensor(x_labeled), Tensor(y_labeled))
+                train_ds = data.TensorDataset(
+                    torch.tensor(x_labeled, dtype=torch.float32),
+                    torch.tensor(y_labeled, dtype=torch.long),
+                )
                 train_dl = data.DataLoader(
                     train_ds,
                     batch_size=self.batch_size,
@@ -91,8 +94,9 @@ class LabelPropagationTrainer:
 
                 x = torch.cat(x).cpu().numpy()
                 y = torch.cat(y).cpu().numpy()
+                y = np.argmax(y, axis=1)
 
-                pb.set_postfix(**feadback.history[-1].as_postfix())
+                pb.set_postfix(**(feadback.history[-1].as_postfix()))
                 pb.update()
 
         return history

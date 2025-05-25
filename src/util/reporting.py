@@ -82,3 +82,13 @@ def lightning_metrics(metrics):
         "AA": metric["val_average_accuracy"],
         "kappa": metric["val_kappa"],
     }
+
+
+def classification_trainer(metrics):
+    return {
+        "loss": metrics["eval_loss"],
+        "f1": metrics["eval_f1"],
+        "OA": metrics["eval_accuracy_overall"],
+        "AA": metrics["eval_accuracy_avg"],
+        "kappa": metrics["eval_kappa"],
+    }

@@ -228,7 +228,7 @@ def introduce_semantic_constraint(cluster, labels, num_classes, semantic_thresho
                 if pure_f > semantic_threshold:
                     purity_max[cluster_id] = f
 
-    result = np.zeros(len(labels))
+    result = np.zeros(len(labels), dtype=np.int32)
 
     for cluster_id in cluster_to_index:
         if cluster_id in purity_max:
@@ -253,7 +253,7 @@ def introduce_spatial_constraint(
     height, width = original_shape
     y_matrix = c.reshape(original_shape)
 
-    result = np.zeros(original_shape)
+    result = np.zeros(original_shape, dtype=np.int32)
 
     for i in range(height):
         for j in range(width):

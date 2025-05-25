@@ -274,7 +274,7 @@ def sample_from_segmentation_matrix_with_zeros(
     cache_path = cache_folder / cache_name
 
     if cache_path.exists():
-        return np.load(cache_path)
+        return np.load(cache_path).astype(np.int32)
 
     len_source = len(source)
     num_classes = len(np.unique(source))

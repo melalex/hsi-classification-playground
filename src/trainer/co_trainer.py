@@ -76,8 +76,8 @@ class BiCoTrainer:
         x_ls, y_pred_ls = self.trainer.predict(
             model, self.__to_dataloader(UnlabeledDatasetDecorator(ds))
         )
-        x = torch.cat(x_ls)
-        y_pred = torch.cat(y_pred_ls)
+        x = torch.cat(x_ls).cpu()
+        y_pred = torch.cat(y_pred_ls).cpu()
         coef, idx = torch.max(y_pred, dim=1)
         high_confidence = coef > self.confidence_threshold
 
