@@ -1,8 +1,9 @@
+import lightning as L
+import torch
+
 from dataclasses import dataclass
 from typing import Callable, Optional
 from torch import optim, nn
-import lightning as L
-import torch
 from torchmetrics import CohenKappa
 from torchmetrics.classification import F1Score
 from torchmetrics.classification import Accuracy
@@ -26,12 +27,14 @@ class HyperSpectralImageClassifier(L.LightningModule):
         lr: float = 1e-3,
         weight_decay=0,
         scheduler: Optional[Callable] = None,
+        loss_fun: Optional[nn.Module] = None,
     ):
         super().__init__()
         self.lr = lr
         self.weight_decay = weight_decay
         self.net = net
         self.scheduler = scheduler
+        self.loss_fun = loss_fun if loss_fun else nn.CrossEntropyLoss()
         self.train_metrics = []
         self.val_metrics = []
 
@@ -53,20 +56,25 @@ class HyperSpectralImageClassifier(L.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        loss = nn.functional.cross_entropy(y_hat, y)
+        loss = self.loss_fun(y_hat, y)
         self.log("loss", loss, prog_bar=True, on_epoch=False, on_step=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        loss = nn.functional.cross_entropy(y_hat, y)
+        loss = self.loss_fun(y_hat, y)
 
-        prediction = torch.argmax(y_hat, dim=1)
-        f1 = self.f1(prediction, y)
-        overall_accuracy = self.overall_accuracy(prediction, y)
-        average_accuracy = self.average_accuracy(prediction, y)
-        kappa = self.kappa(prediction, y)
+        # prediction = torch.argmax(y_hat, dim=1) if len(y_hat.shape) > 1 else y_hat
+        # f1 = self.f1(prediction, y)
+        # overall_accuracy = self.overall_accuracy(prediction, y)
+        # average_accuracy = self.average_accuracy(prediction, y)
+        # kappa = self.kappa(prediction, y)
+
+        f1 = 0
+        overall_accuracy = 0
+        average_accuracy = 0
+        kappa = 0
 
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, on_step=False)
         self.log("val_f1", f1, prog_bar=True, on_epoch=True, on_step=False)

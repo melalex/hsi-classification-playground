@@ -548,3 +548,15 @@ def train_test_band_patch_split(
 def slice_and_patch(image, patch_size=5, splits=4):
     splitted = np.array_split(image, splits, axis=2)
     return [extract_image_patches(it, patch_size) for it in splitted]
+
+
+def to_bin_labels_mask(y: np.ndarray) -> np.ndarray:
+    return np.where(y > 0, 2, np.where(y == 0, 1, 0))
+
+
+def to_bin_labels(y: np.ndarray) -> np.ndarray:
+    return (y > 0).astype(int)
+
+def to_pu_labels(y: np.ndarray) -> np.ndarray:
+    y[y == 0] = -1
+    return y
