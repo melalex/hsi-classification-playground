@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 from torch import optim, nn
 import lightning as L
 import torch
@@ -25,15 +25,13 @@ class HyperSpectralImageClassifier(L.LightningModule):
         num_classes: int,
         lr: float = 1e-3,
         weight_decay=0,
-        scheduler_step_size: Optional[int] = None,
-        scheduler_gamma: Optional[float] = None,
+        scheduler: Optional[Callable] = None,
     ):
         super().__init__()
         self.lr = lr
         self.weight_decay = weight_decay
         self.net = net
-        self.scheduler_step_size = scheduler_step_size
-        self.scheduler_gamma = scheduler_gamma
+        self.scheduler = scheduler
         self.train_metrics = []
         self.val_metrics = []
 
@@ -122,12 +120,8 @@ class HyperSpectralImageClassifier(L.LightningModule):
         optimizer = optim.Adam(
             self.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
-        if self.scheduler_step_size and self.scheduler_gamma:
-            scheduler = optim.lr_scheduler.StepLR(
-                optimizer,
-                step_size=self.scheduler_step_size,
-                gamma=self.scheduler_gamma,
-            )
+        if self.scheduler:
+            scheduler = self.scheduler(optimizer)
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
