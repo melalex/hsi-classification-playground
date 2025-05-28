@@ -10,8 +10,8 @@ class PatchEmbedding(nn.Module):
         self.linear = nn.Linear(patch_h * patch_w, embeding_size)
 
     def forward(self, x):
-        B, C, H, W = x.shape  
-        x = x.view(B, C, -1) 
+        B, C, H, W = x.shape
+        x = x.view(B, C, -1)
         x = self.linear(x)
 
         return x
@@ -60,6 +60,17 @@ class HsiVisionTransformer(nn.Module):
         dropout=0.1,
     ):
         super().__init__()
+
+        self.params = {
+            "num_classes": num_classes,
+            "input_shape": input_shape,
+            "hidden_dim": hidden_dim,
+            "num_layers": num_layers,
+            "num_heads": num_heads,
+            "mlp_dim": mlp_dim,
+            "dropout": mlp_dim,
+        }
+
         _, patch_h, patch_w = input_shape
 
         self.embed = PatchEmbedding(patch_h, patch_w, hidden_dim)
@@ -80,9 +91,12 @@ class HsiVisionTransformer(nn.Module):
         B = x.shape[0]
         x = self.embed(x)
 
-        cls_tokens = self.cls_token.expand(B, -1, -1)  
-        x = torch.cat((cls_tokens, x), dim=1)  
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
 
         x = self.transformer(x)
-        x = x[:, 0] 
+        x = x[:, 0]
         return self.mlp_head(x)
+
+    def get_params(self):
+        return self.params

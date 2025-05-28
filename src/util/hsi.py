@@ -557,6 +557,31 @@ def to_bin_labels_mask(y: np.ndarray) -> np.ndarray:
 def to_bin_labels(y: np.ndarray) -> np.ndarray:
     return (y > 0).astype(int)
 
+
 def to_pu_labels(y: np.ndarray) -> np.ndarray:
     y[y == 0] = -1
     return y
+
+
+def multi_to_bi_class_pu_ds(
+    x_train: np.ndarray, y_train: np.ndarray, x_test: np.ndarray, y_test: np.ndarray
+) -> tuple[np.ndarray, dict[int, np.ndarray], np.ndarray, dict[int, np.ndarray]]:
+    num_clases = len(np.unique(y_train))
+    # new_x_train = np.concatenate((x_train, x_test))
+    new_x_train = x_train
+
+    new_y_train = {}
+    new_y_test = {}
+
+    for i in range(1, num_clases):
+        i_y_train = np.zeros_like(y_train)
+        i_y_test = np.zeros_like(y_test)
+
+        i_y_train[y_train == i] = 1
+        i_y_test[y_test == i] = 1
+
+        # new_y_train[i] = np.concatenate((i_y_train, np.repeat(-1, len(i_y_test))))
+        new_y_train[i] = i_y_train
+        new_y_test[i] = i_y_test
+
+    return new_x_train, new_y_train, x_test, new_y_test

@@ -1,6 +1,12 @@
 import torch
 
+from torch import nn
+
+from pathlib import Path
+
 from torch.utils import data
+
+from src.definitions import MODELS_FOLDER
 
 
 def resolve_torch_device() -> torch.device:
@@ -14,8 +20,6 @@ def dataloader_from_prtototype(
         dataset=dataset,
         batch_size=dataloader.batch_size,
         shuffle=True,
-        sampler=dataloader.sampler,
-        batch_sampler=dataloader.batch_sampler,
         num_workers=dataloader.num_workers,
         collate_fn=dataloader.collate_fn,
         pin_memory=dataloader.pin_memory,
@@ -28,6 +32,18 @@ def dataloader_from_prtototype(
         persistent_workers=dataloader.persistent_workers,
         pin_memory_device=dataloader.pin_memory_device,
     )
+
+
+def save_model(
+    model: nn.Module, model_name: str, base_path: Path = MODELS_FOLDER
+) -> Path:
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    save_path = base_path / f"{model_name}.bin"
+
+    torch.save(model.state_dict(), base_path / model_name)
+
+    return save_path
 
 
 def __resolve_torch_device_str() -> str:

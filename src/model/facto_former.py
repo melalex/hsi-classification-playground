@@ -147,8 +147,22 @@ class FactoFormer(nn.Module):
         attn_p,
         proj_p,
     ):
-
         super().__init__()
+
+        self.params = {
+            "img_size": img_size,
+            "spatial_patch": spatial_patch,
+            "spectral_patch": spectral_patch,
+            "n_classes": n_classes,
+            "spatial_embed_dim": spatial_embed_dim,
+            "spectral_embed_dim": spectral_embed_dim,
+            "bands": bands,
+            "depth": depth,
+            "n_heads": n_heads,
+            "qkv_bias": qkv_bias,
+            "attn_p": attn_p,
+            "proj_p": proj_p,
+        }
 
         self.spatial_patch_embed = PatchEmbed3D(
             img_size=img_size,
@@ -235,3 +249,6 @@ class FactoFormer(nn.Module):
         out_x = self.head(out_x)
 
         return out_x
+
+    def get_params(self):
+        return self.params

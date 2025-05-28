@@ -147,6 +147,21 @@ class SSFTTnet(nn.Module):
         emb_dropout=0.1,
     ):
         super(SSFTTnet, self).__init__()
+
+        self.params = {
+            "in_channels": in_channels,
+            "num_classes": num_classes,
+            "kennel_3D": kennel_3D,
+            "kennel_2D": kennel_2D,
+            "num_tokens": num_tokens,
+            "dim": dim,
+            "depth": depth,
+            "heads": heads,
+            "mlp_dim": mlp_dim,
+            "dropout": dropout,
+            "emb_dropout": emb_dropout,
+        }
+
         self.L = num_tokens
         self.cT = dim
         self.conv3d_features = nn.Sequential(
@@ -213,3 +228,6 @@ class SSFTTnet(nn.Module):
         x = self.nn1(x)
 
         return x
+
+    def get_params(self):
+        return self.params

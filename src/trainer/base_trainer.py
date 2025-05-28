@@ -1,6 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 import torch
 from torch.utils import data
 from torch import nn, Tensor, optim
@@ -22,6 +22,9 @@ class TrainerFeedback:
 
 class TrainableModule(nn.Module):
 
+    def get_params(self):
+        return {}
+
     def configure_optimizers(self) -> optim.Optimizer:
         pass
 
@@ -36,16 +39,14 @@ class AdamOptimizedModule(TrainableModule):
         net: nn.Module,
         lr: float,
         weight_decay=0,
-        scheduler_step_size: Optional[int] = None,
-        scheduler_gamma: Optional[float] = None,
+        scheduler: Optional[Callable] = None,
     ):
         super().__init__()
 
         self.lr = lr
         self.net = net
         self.weight_decay = weight_decay
-        self.scheduler_step_size = scheduler_step_size
-        self.scheduler_gamma = scheduler_gamma
+        self.scheduler = scheduler
 
     def forward(self, x):
         return self.net(x)
@@ -56,14 +57,25 @@ class AdamOptimizedModule(TrainableModule):
     def configure_scheduler(
         self, optimizer: optim.Optimizer
     ) -> Optional[optim.lr_scheduler.LRScheduler]:
-        if self.scheduler_step_size and self.scheduler_gamma:
-            return optim.lr_scheduler.StepLR(
-                optimizer,
-                step_size=self.scheduler_step_size,
-                gamma=self.scheduler_gamma,
-            )
+        if self.scheduler:
+            return self.scheduler(optimizer)
 
         return None
+
+    def get_params(self):
+        wrapper_params = {
+            "learning_rate": self.lr,
+            "weight_decay": self.weight_decay,
+            "scheduler": str(self.scheduler),
+        }
+
+        net_params = (
+            self.net.get_params()
+            if hasattr(self.net, "get_params") and callable(self.net.get_params)
+            else {}
+        )
+
+        return wrapper_params | net_params
 
 
 class BaseTrainer(ABC):
@@ -72,7 +84,8 @@ class BaseTrainer(ABC):
         self,
         model: TrainableModule,
         train_dataloader: data.DataLoader,
-        eval_dataloader: Optional[data.DataLoader],
+        eval_dataloader: Optional[data.DataLoader] = None,
+        test_dataloader: Optional[data.DataLoader] = None,
     ) -> TrainerFeedback:
         pass
 

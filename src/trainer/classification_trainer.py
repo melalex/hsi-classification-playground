@@ -25,14 +25,14 @@ class ClassificationTrainer(BaseTrainer):
         device: torch.device,
         record_history: bool = True,
         validate_every_n_steps: int = 1,
-        gradient_accumulation_steps: int = 1,
+        dl_accumulation_steps: int = 1,
     ):
         self.num_epochs = num_epochs
         self.record_history = record_history
         self.criterion = criterion
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
-        self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.dl_accumulation_steps = dl_accumulation_steps
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -50,12 +50,14 @@ class ClassificationTrainer(BaseTrainer):
         model: TrainableModule,
         train_dataloader: DataLoader,
         eval_dataloader: Optional[DataLoader] = None,
+        test_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
         model = model.to(self.device)
         optimizer = model.configure_optimizers()
         scheduler = model.configure_scheduler(optimizer)
 
         history = []
+        current_posfix = {}
 
         with create_progress_bar()(total=self.num_epochs) as pb:
             for epoch in range(self.num_epochs):
@@ -63,22 +65,35 @@ class ClassificationTrainer(BaseTrainer):
 
                 train_total_loss = 0
 
-                for step, (x, y_true) in enumerate(train_dataloader):
+                x_acc = []
+                y_true_acc = []
+                dl_acc = 0
+
+                for x, y_true in train_dataloader:
                     x = x.to(self.device)
                     y_true = y_true.to(self.device)
 
-                    y_pred = model(x)
-                    loss = self.criterion(y_pred, y_true)
-                    loss = loss / self.gradient_accumulation_steps
+                    x_acc.append(x)
+                    y_true_acc.append(y_true)
+                    dl_acc += 1
 
-                    loss.backward()
-                    train_total_loss += loss.item() * self.gradient_accumulation_steps
+                    if dl_acc >= self.dl_accumulation_steps:
+                        x = torch.cat(x_acc)
+                        y_true = torch.cat(y_true_acc)
 
-                    if (step + 1) % self.gradient_accumulation_steps == 0 or (
-                        step + 1
-                    ) == len(train_dataloader):
-                        optimizer.step()
                         optimizer.zero_grad()
+
+                        y_pred = model(x)
+                        loss = self.criterion(y_pred, y_true)
+
+                        loss.backward()
+                        optimizer.step()
+
+                        train_total_loss += loss.item()
+
+                        x_acc = []
+                        y_true_acc = []
+                        dl_acc = 0
 
                 epoch_loss = train_total_loss / len(train_dataloader)
 
@@ -99,14 +114,21 @@ class ClassificationTrainer(BaseTrainer):
                 if scheduler:
                     scheduler.step()
 
-                pb.set_postfix(**h_entry.as_postfix())
+                current_posfix = h_entry.as_postfix()
+
+                pb.set_postfix(**current_posfix)
                 pb.update()
+
+            if test_dataloader:
+                eval_metrics = self.validate(model, test_dataloader)
+                pb.set_postfix(**(current_posfix | eval_metrics))
 
         return TrainerFeedback(history)
 
     def predict(
         self, model: nn.Module, dataloader: DataLoader
     ) -> tuple[list[Tensor], list[Tensor]]:
+        model.to(self.device)
         model.eval()
 
         result_x = []
@@ -126,6 +148,7 @@ class ClassificationTrainer(BaseTrainer):
     def predict_labeled(
         self, model: nn.Module, dataloader: DataLoader
     ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
+        model.to(self.device)
         model.eval()
 
         all_x = []
@@ -146,6 +169,7 @@ class ClassificationTrainer(BaseTrainer):
         return all_x, all_y_true, all_y_pred
 
     def validate(self, model: nn.Module, dataloader: DataLoader) -> dict[str, float]:
+        model.to(self.device)
         model.eval()
 
         all_preds = []
@@ -161,13 +185,17 @@ class ClassificationTrainer(BaseTrainer):
 
             y_pred_tensor = torch.cat(all_preds, dim=0)
             y_true_tensor = torch.cat(all_targets, dim=0)
-            y_pred_classes = torch.argmax(y_pred_tensor, dim=1)
+            y_pred_classes = (
+                (torch.sigmoid(y_pred_tensor) > 0.5).int()
+                if len(y_pred_tensor.shape) == 1
+                else torch.argmax(y_pred_tensor, dim=1)
+            )
 
             f1 = self.f1(y_pred_classes, y_true_tensor).item()
             acc_overall = self.overall_accuracy(y_pred_classes, y_true_tensor).item()
             acc_avg = self.average_accuracy(y_pred_classes, y_true_tensor).item()
             kappa_score = self.kappa(y_pred_classes, y_true_tensor).item()
-            loss = self.criterion(y_pred_tensor, y_true_tensor).item()
+            loss = self.criterion(y_pred_tensor.float(), y_true_tensor).item()
 
             return {
                 "eval_f1": f1,

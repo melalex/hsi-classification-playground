@@ -5,6 +5,13 @@ class FullyConvolutionalLeNet(nn.Module):
 
     def __init__(self, input_channels, num_classes, first_padding=0):
         super().__init__()
+
+        self.params = {
+            "input_channels": input_channels,
+            "num_classes": num_classes,
+            "first_padding": first_padding,
+        }
+
         self.num_classes = num_classes
         self.net = nn.Sequential(
             nn.Conv2d(input_channels, 100, kernel_size=4, padding=first_padding),
@@ -25,11 +32,20 @@ class FullyConvolutionalLeNet(nn.Module):
         x = x.reshape(x.shape[0], self.num_classes)
         return x
 
+    def get_params(self):
+        return self.params
+
 
 class PuLeNet(nn.Module):
 
-    def __init__(self, input_channels,  first_padding=0):
+    def __init__(self, input_channels, first_padding=0):
         super().__init__()
+
+        self.params = {
+            "input_channels": input_channels,
+            "first_padding": first_padding,
+        }
+
         self.net = nn.Sequential(
             nn.Conv2d(input_channels, 100, kernel_size=4, padding=first_padding),
             nn.BatchNorm2d(100),
@@ -45,3 +61,6 @@ class PuLeNet(nn.Module):
     def forward(self, x):
         x = self.net(x)
         return x.reshape(-1)
+
+    def get_params(self):
+        return self.params

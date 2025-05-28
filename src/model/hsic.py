@@ -27,14 +27,16 @@ class HyperSpectralImageClassifier(L.LightningModule):
         lr: float = 1e-3,
         weight_decay=0,
         scheduler: Optional[Callable] = None,
-        loss_fun: Optional[nn.Module] = None,
+        loss_fun: nn.Module = nn.CrossEntropyLoss(),
+        pred_extractor: Callable = lambda y_hat: torch.argmax(y_hat, dim=1),
     ):
         super().__init__()
         self.lr = lr
         self.weight_decay = weight_decay
         self.net = net
         self.scheduler = scheduler
-        self.loss_fun = loss_fun if loss_fun else nn.CrossEntropyLoss()
+        self.loss_fun = loss_fun
+        self.pred_extractor = pred_extractor
         self.train_metrics = []
         self.val_metrics = []
 
@@ -65,16 +67,11 @@ class HyperSpectralImageClassifier(L.LightningModule):
         y_hat = self.forward(x)
         loss = self.loss_fun(y_hat, y)
 
-        # prediction = torch.argmax(y_hat, dim=1) if len(y_hat.shape) > 1 else y_hat
-        # f1 = self.f1(prediction, y)
-        # overall_accuracy = self.overall_accuracy(prediction, y)
-        # average_accuracy = self.average_accuracy(prediction, y)
-        # kappa = self.kappa(prediction, y)
-
-        f1 = 0
-        overall_accuracy = 0
-        average_accuracy = 0
-        kappa = 0
+        prediction = self.pred_extractor(y_hat)
+        f1 = self.f1(prediction, y)
+        overall_accuracy = self.overall_accuracy(prediction, y)
+        average_accuracy = self.average_accuracy(prediction, y)
+        kappa = self.kappa(prediction, y)
 
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, on_step=False)
         self.log("val_f1", f1, prog_bar=True, on_epoch=True, on_step=False)
@@ -136,8 +133,23 @@ class HyperSpectralImageClassifier(L.LightningModule):
                     "scheduler": scheduler,
                     "interval": "epoch",
                     "frequency": 1,
-                    "monitor": None,
+                    "monitor": "loss",
                 },
             }
         else:
             return optimizer
+
+    def get_params(self):
+        wrapper_params = {
+            "learning_rate": self.lr,
+            "weight_decay": self.weight_decay,
+            "scheduler": str(self.scheduler),
+        }
+
+        net_params = (
+            self.net.get_params()
+            if hasattr(self.net, "get_params") and callable(self.net.get_params)
+            else {}
+        )
+
+        return wrapper_params | net_params

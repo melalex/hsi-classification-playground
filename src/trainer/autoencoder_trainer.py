@@ -25,6 +25,7 @@ class AutoEncoderTrainer(BaseTrainer):
         model: TrainableModule,
         train: DataLoader,
         eval: Optional[DataLoader] = None,
+        test_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
         history = []
         model = model.to(self.device)

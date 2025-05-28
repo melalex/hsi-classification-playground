@@ -1,3 +1,4 @@
+from collections import defaultdict
 import csv
 import json
 import pandas as pd
@@ -84,11 +85,11 @@ def lightning_metrics(metrics):
     }
 
 
-def classification_trainer(metrics):
+def classification_trainer(metrics: dict[str, float]) -> dict[str, float]:
     return {
-        "loss": metrics["eval_loss"],
-        "f1": metrics["eval_f1"],
-        "OA": metrics["eval_accuracy_overall"],
-        "AA": metrics["eval_accuracy_avg"],
-        "kappa": metrics["eval_kappa"],
+        "loss": metrics.get("eval_loss"),
+        "f1": metrics.get("eval_f1"),
+        "OA": metrics.get("eval_accuracy_overall"),
+        "AA": metrics.get("eval_accuracy_avg"),
+        "kappa": metrics.get("eval_kappa"),
     }

@@ -345,8 +345,29 @@ class DCTN(nn.Module):
         groups_width=64,
         channels=103,
     ):
-
         super().__init__()
+
+        self.params = {
+            "layers": layers,
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_chans": in_chans,
+            "num_classes": num_classes,
+            "embed_dims": embed_dims,
+            "transitions": transitions,
+            "segment_dim": segment_dim,
+            "mlp_ratios": mlp_ratios,
+            "skip_lam": skip_lam,
+            "qkv_bias": qkv_bias,
+            "qk_scale": qk_scale,
+            "drop_rate": drop_rate,
+            "attn_drop_rate": attn_drop_rate,
+            "drop_path_rate": drop_path_rate,
+            "groups": groups,
+            "groups_width": groups_width,
+            "channels": channels,
+        }
+
         self.num_classes = num_classes
         self.patch_embed = MDCP(
             img_size=img_size,
@@ -469,3 +490,6 @@ class DCTN(nn.Module):
         x = x.reshape(B, -1, C)
         x = self.norm(x)
         return self.head(x.mean(1))
+
+    def get_params(self):
+        return self.params

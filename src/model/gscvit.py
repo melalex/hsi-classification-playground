@@ -294,6 +294,19 @@ class GSCViT(nn.Module):
         num_groups=[16, 16, 16],
     ):
         super().__init__()
+
+        self.params = {
+            "num_classes": num_classes,
+            "depth": depth,
+            "heads": heads,
+            "group_spatial_size": group_spatial_size,
+            "channels": channels,
+            "dropout": dropout,
+            "padding": padding,
+            "dims": dims,
+            "num_groups": num_groups,
+        }
+
         num_stages = len(depth)
 
         dim_pairs = tuple(zip(dims[:-1], dims[1:]))
@@ -361,3 +374,5 @@ class GSCViT(nn.Module):
             x = relu(x)
         return self.mlp_head(x)
 
+    def get_params(self):
+        return self.params

@@ -166,6 +166,8 @@ class FDSSC_f(nn.Module):
     def __init__(self, band, classes):
         super(FDSSC_f, self).__init__()
 
+        self.params = {"band": band, "classes": classes}
+
         # A faster FDSSC using Conv1D and Conv2D to replace Conv3D
 
         # spectral branch
@@ -299,3 +301,6 @@ class FDSSC_f(nn.Module):
 
         output = self.full_connection(x10)
         return output
+
+    def get_params(self):
+        return self.params

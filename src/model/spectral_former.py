@@ -154,6 +154,20 @@ class SpectralFormer(nn.Module):
     ):
         super().__init__()
 
+        self.params = {
+            "image_size": image_size,
+            "near_band": near_band,
+            "num_patches": num_patches,
+            "num_classes": num_classes,
+            "dim": dim,
+            "depth": depth,
+            "heads": heads,
+            "mlp_dim": mlp_dim,
+            "dim_head": dim_head,
+            "dropout": dropout,
+            "emb_dropout": emb_dropout,
+        }
+
         patch_dim = image_size**2 * near_band
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -192,3 +206,6 @@ class SpectralFormer(nn.Module):
 
         # MLP classification layer
         return self.mlp_head(x)
+
+    def get_params(self):
+        return self.params

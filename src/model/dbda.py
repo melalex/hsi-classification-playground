@@ -110,6 +110,11 @@ class DBDA(nn.Module):
     def __init__(self, band, classes):
         super(DBDA, self).__init__()
 
+        self.params = {
+            "band": band,
+            "classes": classes
+        }
+
         # spectral branch
 
         self.conv11 = nn.Conv3d(
@@ -261,3 +266,6 @@ class DBDA(nn.Module):
         x_pre = torch.cat((x1, x2), dim=1)
         output = self.full_connection(x_pre)
         return output
+
+    def get_params(self):
+        return self.params

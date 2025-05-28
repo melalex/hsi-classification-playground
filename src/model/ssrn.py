@@ -55,6 +55,12 @@ class Residual(nn.Module):
 class SSRN(nn.Module):
     def __init__(self, band, classes):
         super(SSRN, self).__init__()
+
+        self.params = {
+            "band": band,
+            "classes": classes
+        }
+
         self.conv1 = nn.Conv3d(
             in_channels=1, out_channels=24, kernel_size=(1, 1, 7), stride=(1, 1, 2)
         )
@@ -119,3 +125,6 @@ class SSRN(nn.Module):
         x4 = self.avg_pooling(x3)
         x4 = x4.view(x4.size(0), -1)
         return self.full_connection(x4)
+
+    def get_params(self):
+        return self.params

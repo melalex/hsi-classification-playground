@@ -91,7 +91,7 @@ class BiCoTrainer:
         return data.DataLoader(
             ds,
             batch_size=self.batch_size,
-            shuffle=False,
+            shuffle=True,
             generator=self.generator,
         )
 
