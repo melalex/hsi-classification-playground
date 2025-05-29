@@ -1,6 +1,8 @@
+from collections import defaultdict
 from enum import Enum
 from pathlib import Path
 import numpy as np
+from sklearn.model_selection import train_test_split
 import torch
 
 from torch import nn
@@ -8,7 +10,7 @@ from torch.utils import data
 from sklearn.decomposition import NMF, PCA, FactorAnalysis, TruncatedSVD
 from sklearn.discriminant_analysis import StandardScaler
 
-from src.definitions import CACHE_FOLDER
+from src.definitions import CACHE_FOLDER, RAW_DATA_FOLDER
 from src.model.autoencoder import (
     AsymmetricPointWiseAutoEncoder,
     SpatialAutoEncoder,
@@ -306,23 +308,54 @@ def sample_from_segmentation_matrix_with_zeros(
     return result
 
 
-def create_labels_mask(
-    source, examples_per_class, cache_folder: Path
+def read_fixed_labels_mask(name: str, folder: Path = RAW_DATA_FOLDER / "mask"):
+    return np.load(folder / name).astype(np.bool_)
+
+
+def write_fixed_labels_mask(
+    mask: np.ndarray, name: str, folder: Path = RAW_DATA_FOLDER / "mask"
 ):
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / name
+    np.save(path, mask)
+    return path
+
+
+def create_random_labels_mask_cached(
+    source: np.ndarray,
+    examples_per_class: dict[int, int],
+    cache_key,
+    cache_folder=CACHE_FOLDER / "y_masked",
+):
+    cache_folder = cache_folder / cache_key
     cache_folder.mkdir(parents=True, exist_ok=True)
-    cache_name = f"mask_{"".join([str(it) for it in examples_per_class])}"
+    cache_name = f"mask_{"_".join([f"{k}-{v}" for k, v in examples_per_class.items()])}"
     cache_path = cache_folder / cache_name
 
     if cache_path.exists():
-        return np.load(cache_path).astype(np.int32)
+        return read_fixed_labels_mask(cache_path)
+
+    result = create_random_labels_mask(source, examples_per_class)
+
+    np.save(cache_path, result)
+
+    return result
+
+
+def create_random_labels_mask(
+    source: np.ndarray,
+    examples_per_class: dict[int, int],
+):
+    if not examples_per_class:
+        return source
 
     len_source = len(source)
-    num_classes = len(np.unique(source))
-    examples_count = np.zeros(num_classes)
-    result = np.full(len_source, -1)
+    examples_count = defaultdict(lambda: 0)
+
+    result = np.full(len_source, False)
     iter_count = 0
 
-    while not np.all(examples_count == examples_per_class):
+    while not examples_count == examples_per_class:
         if iter_count > MAX_ITER:
             raise RuntimeError(
                 f"Max number of iterations exceeded. Examples count: {examples_count}"
@@ -330,18 +363,33 @@ def create_labels_mask(
 
         i = np.random.randint(low=0, high=len_source)
         it = source[i]
-        examples_count_i = it
 
-        if (
-            result[i] == -1
-            and examples_count[examples_count_i] < examples_per_class[examples_count_i]
-        ):
-            examples_count[examples_count_i] = examples_count[examples_count_i] + 1
-            result[i] = it
+        if not result[i] and examples_count[it] < examples_per_class.get(it, 0):
+            examples_count[it] = examples_count[it] + 1
+            result[i] = True
 
         iter_count += 1
 
-    np.save(cache_path, result)
+    return result
+
+
+def create_fraction_labels_mask(
+    source: np.ndarray,
+    fraction_of_examples: float = 0.8,
+    random_seed: int = 42,
+) -> np.ndarray:
+    source_len = len(source)
+    indices = np.arange(source_len)
+    result = np.full(source_len, False)
+
+    train_idx, _ = train_test_split(
+        indices,
+        train_size=fraction_of_examples,
+        random_state=random_seed,
+        stratify=source,
+    )
+
+    result[train_idx] = True
 
     return result
 
@@ -583,6 +631,15 @@ def train_test_band_patch_split(
         y_test,
         y_masked,
     )
+
+
+def train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
+    x_train = x[mask, :, :]
+    y_train = y[mask]
+    x_test = x[~mask, :, :]
+    y_test = y[~mask]
+
+    return x_train, y_train, x_test, y_test
 
 
 def slice_and_patch(image, patch_size=5, splits=4):

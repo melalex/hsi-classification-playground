@@ -9,8 +9,8 @@ from pathlib import Path
 from src.definitions import REPORTS_FOLDER
 
 
-def create_model_name(prefix: str, args: list[object]) -> str:
-    return f"{prefix}_{"".join([str(it) for it in args])}"
+def create_model_name(prefix: str, args: dict[int, int]) -> str:
+    return f"{prefix}_{"_".join([f"{k}-{v}" for k, v in args.items()])}"
 
 
 def report_run(
@@ -73,6 +73,7 @@ def read_report_to_show(
         report.drop("model_category", axis=1, inplace=True)
 
     return report
+
 
 def lightning_metrics(metrics):
     metric = metrics[-1]

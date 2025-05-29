@@ -31,6 +31,15 @@ def plot_epoch_generic_comparison(
     plt.legend()
     plt.show()
 
+def plot_masked_segmentation_comparison(ground_truth: np.ndarray, mask: np.ndarray):
+    masked = np.zeros_like(ground_truth)
+    mask = mask.reshape(ground_truth.shape)
+    masked[mask] = ground_truth[mask]
+    
+    plot_segmentation_comparison(ground_truth, masked, title2="Masked")
+
+    return masked
+
 
 def plot_segmentation_comparison(
     ground_truth,
