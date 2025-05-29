@@ -306,6 +306,46 @@ def sample_from_segmentation_matrix_with_zeros(
     return result
 
 
+def create_labels_mask(
+    source, examples_per_class, cache_folder: Path
+):
+    cache_folder.mkdir(parents=True, exist_ok=True)
+    cache_name = f"mask_{"".join([str(it) for it in examples_per_class])}"
+    cache_path = cache_folder / cache_name
+
+    if cache_path.exists():
+        return np.load(cache_path).astype(np.int32)
+
+    len_source = len(source)
+    num_classes = len(np.unique(source))
+    examples_count = np.zeros(num_classes)
+    result = np.full(len_source, -1)
+    iter_count = 0
+
+    while not np.all(examples_count == examples_per_class):
+        if iter_count > MAX_ITER:
+            raise RuntimeError(
+                f"Max number of iterations exceeded. Examples count: {examples_count}"
+            )
+
+        i = np.random.randint(low=0, high=len_source)
+        it = source[i]
+        examples_count_i = it
+
+        if (
+            result[i] == -1
+            and examples_count[examples_count_i] < examples_per_class[examples_count_i]
+        ):
+            examples_count[examples_count_i] = examples_count[examples_count_i] + 1
+            result[i] = it
+
+        iter_count += 1
+
+    np.save(cache_path, result)
+
+    return result
+
+
 def scale_image(image):
     h, w, c = image.shape
     img_reshaped = image.reshape(-1, c)

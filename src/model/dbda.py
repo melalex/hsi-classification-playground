@@ -265,7 +265,7 @@ class DBDA(nn.Module):
 
         x_pre = torch.cat((x1, x2), dim=1)
         output = self.full_connection(x_pre)
-        return output
+        return output.reshape(-1)
 
     def get_params(self):
         return self.params

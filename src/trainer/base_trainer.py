@@ -22,7 +22,10 @@ class TrainerFeedback:
 
 class TrainableModule(nn.Module):
 
-    def get_params(self):
+    def get_display_name(self) -> Optional[str]:
+        pass
+
+    def get_params(self) -> dict[str, object]:
         return {}
 
     def configure_optimizers(self) -> optim.Optimizer:
@@ -40,6 +43,7 @@ class AdamOptimizedModule(TrainableModule):
         lr: float,
         weight_decay=0,
         scheduler: Optional[Callable] = None,
+        display_name: Optional[str] = None,
     ):
         super().__init__()
 
@@ -47,6 +51,7 @@ class AdamOptimizedModule(TrainableModule):
         self.net = net
         self.weight_decay = weight_decay
         self.scheduler = scheduler
+        self.display_name = display_name
 
     def forward(self, x):
         return self.net(x)
@@ -62,7 +67,10 @@ class AdamOptimizedModule(TrainableModule):
 
         return None
 
-    def get_params(self):
+    def get_display_name(self):
+        return self.display_name
+
+    def get_params(self) -> dict[str, object]:
         wrapper_params = {
             "learning_rate": self.lr,
             "weight_decay": self.weight_decay,

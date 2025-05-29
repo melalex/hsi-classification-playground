@@ -1,10 +1,10 @@
 from typing import Optional
 
-from torch import Generator, nn
+from torch import Generator, Tensor, nn
 import torch
 from torch.utils import data
 
-from src.data.dataset_decorator import BinaryDatasetDecorator, UnlabeledDatasetDecorator
+from src.data.dataset_decorator import UnlabeledDatasetDecorator
 from src.model.ensemble import MultiViewEnsemble
 from src.trainer.base_trainer import (
     BaseTrainer,
@@ -12,6 +12,7 @@ from src.trainer.base_trainer import (
     TrainerFeedback,
     TrainerHistoryEntry,
 )
+from src.trainer.model_support import ModelSupport
 from src.util.progress_bar import create_progress_bar
 
 
@@ -19,13 +20,18 @@ class MultiViewTrainer:
 
     def __init__(
         self,
+        num_classes: int,
         batch_size: int,
         confidence_threshold: float,
         generator: Generator,
+        device: torch.device,
+        max_epochs: Optional[int] = None,
     ):
         self.batch_size = batch_size
         self.confidence_threshold = confidence_threshold
         self.generator = generator
+        self.support = ModelSupport(num_classes, device)
+        self.max_epochs = max_epochs
 
     def fit(
         self,
@@ -33,28 +39,25 @@ class MultiViewTrainer:
         trainers: list[BaseTrainer],
         labeled: list[data.Dataset],
         unlabeled: data.Dataset,
-        eval_ds_list: Optional[list[data.Dataset]] = None,
-    ) -> TrainerFeedback:
+        model_eval_dl: Optional[list[data.DataLoader]] = None,
+        ensemble_eval_dl: Optional[data.DataLoader] = None,
+    ) -> tuple[TrainerFeedback, nn.Module]:
         assert len(models) == len(trainers) and len(models) == len(labeled)
 
         history = []
         localy_labeled = labeled[:]
         models_count = len(models)
-        eval_ds_list = eval_ds_list if eval_ds_list else [None]
+        model_eval_dl = model_eval_dl if model_eval_dl else [None] * len(models)
 
         run = True
 
         with create_progress_bar()() as pb:
             while run:
                 run = False
-                for model, trainer, ds, eval_ds in zip(
-                    models, trainers, localy_labeled, eval_ds_list
+                for model, trainer, ds, eval_dl in zip(
+                    models, trainers, localy_labeled, model_eval_dl
                 ):
-                    trainer.fit(
-                        model,
-                        self.__to_dataloader(ds),
-                        self.__to_dataloader(eval_ds),
-                    )
+                    trainer.fit(model, self.__to_dataloader(ds), eval_dl)
 
                 if unlabeled:
                     for i, (model, trainer) in enumerate(zip(models, trainers)):
@@ -74,22 +77,30 @@ class MultiViewTrainer:
                             unlabeled = data.TensorDataset(x[~labeled_mask])
 
                 t_metrics = {"unlabeled_len": len(unlabeled)}
-                e_metrics = {}
+                e_metrics = (
+                    self.validate(MultiViewEnsemble(models), ensemble_eval_dl)
+                    if ensemble_eval_dl
+                    else {}
+                )
                 h_entry = TrainerHistoryEntry(t_metrics, e_metrics)
 
                 history.append(h_entry)
                 pb.set_postfix(**h_entry.as_postfix())
                 pb.update()
 
-        return TrainerFeedback(history)
+        return TrainerFeedback(history), MultiViewEnsemble(models)
+
+    def predict(
+        self, model: nn.Module, dataloader: data.DataLoader
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        return self.support.predict(model, dataloader)
 
     def validate(
         self,
-        models: list[TrainableModule],
-        trainers: list[BaseTrainer],
+        model: nn.Module,
         eval_dl: Optional[data.DataLoader],
     ) -> dict[str, float]:
-        return trainers[1].validate(MultiViewEnsemble(models), eval_dl)
+        return self.support.validate(model, eval_dl)
 
     def __pseudo_label(self, model: nn.Module, trainer: BaseTrainer, ds: data.Dataset):
         x_ls, y_pred_ls = trainer.predict(
