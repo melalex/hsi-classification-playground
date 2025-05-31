@@ -107,8 +107,10 @@ class CAM_Module(nn.Module):
 
 
 class DBDA(nn.Module):
-    def __init__(self, band, classes):
+    def __init__(self, band, classes, flatten_out = False):
         super(DBDA, self).__init__()
+
+        self.flatten_out = flatten_out
 
         self.params = {
             "band": band,
@@ -265,7 +267,11 @@ class DBDA(nn.Module):
 
         x_pre = torch.cat((x1, x2), dim=1)
         output = self.full_connection(x_pre)
-        return output.reshape(-1)
+
+        if self.flatten_out:
+            return output.reshape(-1)
+        else:
+            return output
 
     def get_params(self):
         return self.params

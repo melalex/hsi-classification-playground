@@ -642,6 +642,15 @@ def train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
     return x_train, y_train, x_test, y_test
 
 
+def pu_train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
+    y_train = np.full(y.shape, -1)
+    y_train[mask] = y[mask]
+    x_test = x[~mask, :, :]
+    y_test = y[~mask]
+
+    return x, y_train, x_test, y_test
+
+
 def slice_and_patch(image, patch_size=5, splits=4):
     splitted = np.array_split(image, splits, axis=2)
     return [extract_image_patches(it, patch_size) for it in splitted]

@@ -4,6 +4,7 @@ import torch.utils.data as data
 
 from typing import Sequence
 
+
 class UnlabeledDatasetDecorator(data.Dataset):
 
     def __init__(self, decorated: data.Dataset):
@@ -47,7 +48,44 @@ class BinaryDatasetDecorator(data.Dataset):
     def __getitem__(self, idx):
         x, y = self.decorated[idx]
         return x, (
-            torch.tensor(1, dtype=float)
+            torch.tensor(1, dtype=torch.float32)
             if y == self.label
-            else torch.tensor(0, dtype=float)
+            else torch.tensor(0, dtype=torch.float32)
         )
+
+
+class PuDatasetDecorator(data.Dataset):
+
+    def __init__(self, decorated: data.Dataset, label: int):
+        super().__init__()
+
+        self.decorated = decorated
+        self.label = label
+
+    def __len__(self):
+        return len(self.decorated)
+
+    def __getitem__(self, idx):
+        x, y = self.decorated[idx]
+
+        if y == self.label:
+            return x, torch.tensor(1, dtype=torch.int32)
+        elif y == -1:
+            return x, torch.tensor(-1, dtype=torch.int32)
+        else:
+            return x, torch.tensor(0, dtype=torch.int32)
+
+
+class NegativeDataset(data.Dataset):
+
+    def __init__(self, x: Tensor):
+        super().__init__()
+
+        self.decorated = UnlabeledDatasetDecorator(data.TensorDataset(x))
+
+    def __len__(self):
+        return len(self.decorated)
+
+    def __getitem__(self, idx):
+        x = self.decorated[idx]
+        return x, torch.tensor(0, device=x.device, dtype=torch.float32)

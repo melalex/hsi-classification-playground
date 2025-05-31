@@ -29,7 +29,7 @@ class ClassificationTrainer(BaseTrainer):
     ):
         self.num_epochs = num_epochs
         self.record_history = record_history
-        self.criterion = criterion
+        self.criterion = criterion.to(device)
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
         self.dl_accumulation_steps = dl_accumulation_steps

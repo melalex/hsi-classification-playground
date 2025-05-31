@@ -48,9 +48,21 @@ class ModelSupport:
 
         return result_x, result_y
 
+    def predict_batch(self, model: nn.Module, x: Tensor) -> Tensor:
+        with torch.no_grad():
+            model.to(self.device)
+            model.eval()
+
+            x = x.to(self.device)
+
+            return model(x)
+
     def validate(
         self, model: nn.Module, dataloader: data.DataLoader
     ) -> dict[str, float]:
+        if not dataloader:
+            return {}
+
         model.to(self.device)
         model.eval()
 
