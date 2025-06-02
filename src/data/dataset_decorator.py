@@ -76,16 +76,17 @@ class PuDatasetDecorator(data.Dataset):
             return x, torch.tensor(0, dtype=torch.int32)
 
 
-class NegativeDataset(data.Dataset):
+class ConstLabelDataset(data.Dataset):
 
-    def __init__(self, x: Tensor):
+    def __init__(self, x: Tensor, label: int):
         super().__init__()
 
         self.decorated = UnlabeledDatasetDecorator(data.TensorDataset(x))
+        self.label = label
 
     def __len__(self):
         return len(self.decorated)
 
     def __getitem__(self, idx):
         x = self.decorated[idx]
-        return x, torch.tensor(0, device=x.device, dtype=torch.float32)
+        return x, torch.tensor(self.label, device=x.device, dtype=torch.float32)

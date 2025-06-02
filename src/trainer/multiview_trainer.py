@@ -5,7 +5,7 @@ from torch import Tensor, nn
 import torch
 from torch.utils import data
 
-from src.data.dataset_decorator import NegativeDataset, UnlabeledDatasetDecorator
+from src.data.dataset_decorator import ConstLabelDataset, UnlabeledDatasetDecorator
 from src.model.ensemble import MultiViewEnsemble
 from src.trainer.base_trainer import (
     BaseTrainer,
@@ -136,7 +136,10 @@ class MultiViewTrainer:
                 for j in range(models_count):
                     if j != i:
                         new_labeled_x = x[mask.cpu()]
-                        new_labeled[j].append(NegativeDataset(new_labeled_x))
+                        new_labeled[j].append(ConstLabelDataset(new_labeled_x, 0))
+                    # else:
+                    #     new_labeled_x = x[mask.cpu()]
+                    #     new_labeled[j].append(ConstLabelDataset(new_labeled_x, 1))
 
         new_labeled_dl = []
 
