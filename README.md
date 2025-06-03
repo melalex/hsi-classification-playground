@@ -4,6 +4,42 @@ Code implementation of [Semi-Supervised Hyperspectral Image Classification via S
 
 ![Spatial-Regulated Self-Training](./img/SRST-schema.png)
 
+## Notebooks
+
+* [EDA for Indian Pines](notebooks/0-00-eda.ipynb)
+* [Create train dataset for Indian Pines](notebooks/0-01-select-train-ds.ipynb)
+* [Indian Pines classification with LeNet](notebooks/1-00-lenet.ipynb)
+* [Indian Pines classification with ViT](notebooks/1-01-vit.ipynb)
+* [Indian Pines classification with SpectralFormer](notebooks/1-02-spectral-former.ipynb)
+* [Indian Pines classification with FactoFormer](notebooks/1-03-facto-former.ipynb)
+* [Indian Pines classification with GSViT](notebooks/1-04-gsvit.ipynb)
+* [Indian Pines classification with DBDA](notebooks/1-05-dbda.ipynb)
+* [Indian Pines classification with SSFTTNET](notebooks/1-06-ssfttnet.ipynb)
+* [Indian Pines classification with FDSSC](notebooks/1-07-fdssc.ipynb)
+* [Indian Pines classification with SSRN](notebooks/1-08-ssrn.ipynb)
+* [Indian Pines classification with DCTN](notebooks/1-09-dctn.ipynb)
+* [Indian Pines classification with modified DBDA (fusion by cross attention)](notebooks/1-10-dbda-v2.ipynb)
+* [Indian Pines ground classification with LeNet](notebooks/2-00-ground-lenet.ipynb)
+* [Indian Pines bin classification with LeNet](notebooks/2-01-bin-lenet.ipynb)
+* [Indian Pines ground classification with GSViT](notebooks/2-04-ground-gsvit.ipynb)
+* [Indian Pines bin classification with DBDA](notebooks/2-05-bin-dbda.ipynb)
+* [Indian Pines ground classification with DBDA](notebooks/2-06-ground-dbda.ipynb)
+* [Indian Pines classification with original spatial regulated self trainining](notebooks/3-00-v1-spatial-regulated-self-training.ipynb)
+* [Indian Pines classification with modified spatial regulated self trainining](notebooks/3-01-v2-spatial-regulated-self-training.ipynb)
+* [Grid hyperparam search for original spatial regulated self trainining](notebooks/4-00-v1-spatial-regulated-self-training-gridsearch.ipynb)
+* [Grid hyperparam search for modified spatial regulated self trainining](notebooks/4-01-v2-spatial-regulated-self-training-gridsearch.ipynb)
+* [Grreed hyperparam search for original spatial regulated self trainining](notebooks/4-02-v1-spatial-regulated-self-training-greedsearch.ipynb)
+* [Pointwise autoencoder](notebooks/5-00-pointwise-autoencoder.ipynb)
+* [Spatial autoencoder](notebooks/5-01-spatial-autoencoder.ipynb)
+* [ViT autoencoder](notebooks/5-02-vit-autoencoder.ipynb)
+* [Indian Pines classification with clustering](notebooks/6-00-idian-pines-clustering.ipynb)
+* [Indian Pines classification with SpectralFormer and co-training](notebooks/6-01-sf-co-training-indian-pines.ipynb)
+* [Indian Pines classification with LeNet and co-training](notebooks/6-02-cnn-co-training-indian-pines.ipynb)
+* [Indian Pines classification with label propagation](notebooks/6-03-lenet-label-propagation.ipynb)
+* [Indian Pines classification with democratic co-learning](notebooks/6-04-democratic-co-learning.ipynb)
+* [Indian Pines classification with bin multiview training](notebooks/6-05-multiview-training-indian-pines.ipynb)
+* [Indian Pines classification with positive unlabled multiview training](notebooks/6-06-pu-multiview-training-indian-pines.ipynb)
+
 ## Description
 
 Because there are many unlabeled samples in hyperspectral images and the cost of manual labeling is high, this algorithm adopts semi-supervised learning method to make full use of many unlabeled samples.
