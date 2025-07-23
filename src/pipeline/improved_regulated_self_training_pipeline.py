@@ -16,12 +16,7 @@ from src.pipeline.common import (
     introduce_semantic_constraint,
     introduce_spatial_constraint,
 )
-from src.util.image import scale_image
-from src.util.patches import (
-    extract_image_patches,
-    extract_label_patches,
-    extract_patches,
-)
+from src.util.hsi import extract_image_patches, extract_label_patches, extract_patches, scale_image
 from src.util.progress_bar import create_progress_bar
 
 

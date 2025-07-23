@@ -1,6 +1,7 @@
 from collections import defaultdict
 import csv
 import json
+from typing import Sequence
 import pandas as pd
 import datetime
 
@@ -76,7 +77,10 @@ def read_report_to_show(
 
 
 def lightning_metrics(metrics):
-    metric = metrics[-1]
+    if isinstance(metrics, Sequence):
+        metric = metrics[-1]
+    else:
+        metric = metrics
     return {
         "loss": metric["val_loss"],
         "f1": metric["val_f1"],

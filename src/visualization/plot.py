@@ -1,5 +1,4 @@
 import numpy as np
-import seaborn as sns
 
 from matplotlib import animation, pyplot as plt
 import torch
@@ -19,6 +18,16 @@ def plot_epoch_generic(feedback: list[float], desc="Loss", size=(12, 6)):
     plt.show()
 
 
+def plot_generic(x: list[int], y: list[float], desc="Loss", xlabel="", size=(12, 6)):
+    plt.figure(figsize=size)
+    plt.plot(x, y, label=desc)
+    plt.title(desc)
+    plt.xlabel(xlabel)
+    plt.ylabel(desc)
+    plt.legend()
+    plt.show()
+
+
 def plot_epoch_generic_comparison(
     a: list[float], b: list[float], desc="Loss", size=(12, 6)
 ):
@@ -31,11 +40,12 @@ def plot_epoch_generic_comparison(
     plt.legend()
     plt.show()
 
+
 def plot_masked_segmentation_comparison(ground_truth: np.ndarray, mask: np.ndarray):
     masked = np.zeros_like(ground_truth)
     mask = mask.reshape(ground_truth.shape)
     masked[mask] = ground_truth[mask]
-    
+
     plot_segmentation_comparison(ground_truth, masked, title2="Masked")
 
     return masked

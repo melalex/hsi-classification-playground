@@ -19,13 +19,6 @@ def load_indian_pines(dest=EXTERNAL_DATA_FOLDER) -> tuple[np.ndarray, np.ndarray
 
     return x["indian_pines_corrected"], y["indian_pines_gt"]
 
-def load_indian_pines_v2(dest=EXTERNAL_DATA_FOLDER):
-    x = scipy.io.loadmat(
-        "/home/melal/Workspace/spatial-regulated-self-training/data/external/IndianPine.mat"
-    )
-
-    return x["input"], x["TR"], x["TE"], x["TR"] + x["TE"]
-
 
 def create_indian_pines_dataset(dest=EXTERNAL_DATA_FOLDER):
     x, y = load_indian_pines(dest)
@@ -53,46 +46,3 @@ def create_patched_indian_pines_dataset(
     y_tensor = torch.tensor(y, dtype=torch.long, device=device)
 
     return scale, TensorDataset(x_tensor, y_tensor)
-
-
-# def create_patched_indian_pines_semi_guided_dataset(
-#     patch_size=5, fraction_of_examples=0.1, dest=EXTERNAL_DATA_FOLDER
-# ):
-#     image, labels = load_indian_pines(dest)
-#     x, y = extract_patches(image, labels, patch_size=patch_size)
-#     scale, x = scale_patched(x)
-
-#     full, labeled, unlabeled = mask_patched_indian_pines(x, y, fraction_of_examples)
-
-#     return (scale, full, labeled, unlabeled)
-
-
-# def mask_patched_indian_pines(x, y, fraction_of_examples, device):
-#     y_masked = sample_fraction_from_segmentation_vector_with_zeros(
-#         y, fraction_of_examples
-#     )
-#     mask = y_masked > -1
-
-#     x_labeled = x[mask, :, :, :]
-#     y_labeled = y[mask]
-#     x_unlabeled = x[~mask, :, :, :]
-#     y_unlabeled = y[~mask]
-
-#     x_full_tensor = torch.tensor(x, dtype=torch.float32, device=device).permute(
-#         0, 3, 1, 2
-#     )
-#     y_full_tensor = torch.tensor(y, dtype=torch.long, device=device)
-#     x_labeled_tensor = torch.tensor(
-#         x_labeled, dtype=torch.float32, device=device
-#     ).permute(0, 3, 1, 2)
-#     y_labeled_tensor = torch.tensor(y_labeled, dtype=torch.long, device=device)
-#     x_unlabeled_tensor = torch.tensor(
-#         x_unlabeled, dtype=torch.float32, device=device
-#     ).permute(0, 3, 1, 2)
-#     y_unlabeled_tensor = torch.tensor(y_unlabeled, dtype=torch.long, device=device)
-
-#     return (
-#         TensorDataset(x_full_tensor, y_full_tensor),
-#         TensorDataset(x_labeled_tensor, y_labeled_tensor),
-#         TensorDataset(x_unlabeled_tensor, y_unlabeled_tensor),
-#     )

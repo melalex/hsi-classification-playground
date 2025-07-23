@@ -309,7 +309,11 @@ def sample_from_segmentation_matrix_with_zeros(
 
 
 def read_fixed_labels_mask(name: str, folder: Path = RAW_DATA_FOLDER / "mask"):
-    return np.load(folder / name).astype(np.bool_)
+    return read_fixed_labels_mask_from_path(folder / name)
+
+
+def read_fixed_labels_mask_from_path(path: Path):
+    return np.load(path).astype(np.bool_)
 
 
 def write_fixed_labels_mask(
@@ -647,6 +651,20 @@ def pu_train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
     y_train[mask] = y[mask]
     x_test = x[~mask, :, :]
     y_test = y[~mask]
+
+    return x, y_train, x_test, y_test
+
+
+def pu_bin_train_test_split_by_mask(
+    target_class: int, x: np.ndarray, y: np.ndarray, mask: np.ndarray
+):
+    y_train = np.full(y.shape, -1)
+    y_train[mask] = y[mask]
+    y_train = (y_train == target_class).astype(int)
+
+    x_test = x[~mask, :, :]
+    y_test = y[~mask]
+    y_test = (y_test == target_class).astype(int)
 
     return x, y_train, x_test, y_test
 
