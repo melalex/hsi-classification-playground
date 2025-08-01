@@ -14,7 +14,7 @@ class HistoryEntry:
     score: dict[str, float]
 
 
-class RepresentativeDatapointsSearchAdapter[M](ABC):
+class RepresentativeDataPointsSearchAdapter[M](ABC):
 
     def get_run_params(
         self,
@@ -27,7 +27,11 @@ class RepresentativeDatapointsSearchAdapter[M](ABC):
         pass
 
     def fit_model(
-        self, model: M, loader: data.DataLoader, eval_loader: Optional[data.DataLoader]
+        self,
+        model: M,
+        loader: data.DataLoader,
+        eval_loader: Optional[data.DataLoader],
+        params: dict[str, float],
     ) -> list[dict[str, float]]:
         pass
 
@@ -45,14 +49,14 @@ class RepresentativeDatapointsSearchAdapter[M](ABC):
         pass
 
 
-class RepresentativeDatapointsSearch[M]:
-    adapter: RepresentativeDatapointsSearchAdapter[M]
+class RepresentativeDataPointsSearch[M]:
+    adapter: RepresentativeDataPointsSearchAdapter[M]
     log_dir: Optional[Path]
     run_name: Optional[str]
 
     def __init__(
         self,
-        adapter: RepresentativeDatapointsSearchAdapter[M],
+        adapter: RepresentativeDataPointsSearchAdapter[M],
         log_dir: Optional[Path] = None,
         run_name: Optional[Path] = None,
     ):
@@ -67,7 +71,7 @@ class RepresentativeDatapointsSearch[M]:
         with tqdm.tqdm(total=len(params_list)) as pb:
             for id, dl, eval_dl, params in params_list:
                 model = self.adapter.init_model(params)
-                model_history = self.adapter.fit_model(model, dl, eval_dl)
+                model_history = self.adapter.fit_model(model, dl, eval_dl, params)
                 score = self.adapter.score_model(model)
 
                 self.adapter.on_scored_model(id, params, model, model_history, score)
@@ -93,7 +97,7 @@ class RepresentativeDatapointsSearch[M]:
 
         log_file.parent.mkdir(exist_ok=True, parents=True)
         file_exists = log_file.exists()
-        
+
         csv_row = {
             "id": id,
             "params": params,
@@ -112,6 +116,9 @@ class RepresentativeDatapointsSearch[M]:
 
     def __log_history(self, id, model_history):
         if self.log_dir is None:
+            return
+
+        if not model_history:
             return
 
         history_file_name = (

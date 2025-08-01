@@ -1,14 +1,16 @@
+import numpy as np
+import torch
+
+
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
-import numpy as np
-from sklearn.model_selection import train_test_split
-import torch
 
 from torch import nn
 from torch.utils import data
 from sklearn.decomposition import NMF, PCA, FactorAnalysis, TruncatedSVD
 from sklearn.discriminant_analysis import StandardScaler
+from sklearn.model_selection import train_test_split
 
 from src.definitions import CACHE_FOLDER, RAW_DATA_FOLDER
 from src.model.autoencoder import (
@@ -272,7 +274,7 @@ def sample_from_segmentation_matrix_with_zeros(
     source, examples_per_class, cache_folder: Path
 ):
     cache_folder.mkdir(parents=True, exist_ok=True)
-    cache_name = f"mask_{"".join([str(it) for it in examples_per_class])}"
+    cache_name = "mask_" + "".join([str(it) for it in examples_per_class])
     cache_path = cache_folder / cache_name
 
     if cache_path.exists():
@@ -325,6 +327,13 @@ def write_fixed_labels_mask(
     return path
 
 
+def apply_mask_to_visualize(mask, labels):
+    new_labels = labels + 1
+    new_labels[mask != 1] = 0
+
+    return new_labels
+
+
 def create_random_labels_mask_cached(
     source: np.ndarray,
     examples_per_class: dict[int, int],
@@ -333,7 +342,7 @@ def create_random_labels_mask_cached(
 ):
     cache_folder = cache_folder / cache_key
     cache_folder.mkdir(parents=True, exist_ok=True)
-    cache_name = f"mask_{"_".join([f"{k}-{v}" for k, v in examples_per_class.items()])}"
+    cache_name = "mask_" + "_".join([f"{k}-{v}" for k, v in examples_per_class.items()])
     cache_path = cache_folder / cache_name
 
     if cache_path.exists():

@@ -28,6 +28,29 @@ def plot_generic(x: list[int], y: list[float], desc="Loss", xlabel="", size=(12,
     plt.show()
 
 
+def plot_3_generic(
+    x: list[int],
+    y_0: list[float],
+    y_1: list[float],
+    y_2: list[float],
+    desc_0="Loss",
+    desc_1="Loss",
+    desc_2="Loss",
+    desc="",
+    xlabel="",
+    size=(12, 6),
+):
+    plt.figure(figsize=size)
+    plt.plot(x, y_0, label=desc_0)
+    plt.plot(x, y_1, label=desc_1)
+    plt.plot(x, y_2, label=desc_2)
+    plt.title(desc)
+    plt.xlabel(xlabel)
+    plt.ylabel(desc)
+    plt.legend()
+    plt.show()
+
+
 def plot_epoch_generic_comparison(
     a: list[float], b: list[float], desc="Loss", size=(12, 6)
 ):

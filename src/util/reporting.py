@@ -11,7 +11,7 @@ from src.definitions import REPORTS_FOLDER
 
 
 def create_model_name(prefix: str, args: dict[int, int]) -> str:
-    return f"{prefix}_{"_".join([f"{k}-{v}" for k, v in args.items()])}"
+    return f"{prefix}_" + "_".join([f"{k}-{v}" for k, v in args.items()])
 
 
 def report_run(
