@@ -28,22 +28,19 @@ def plot_generic(x: list[int], y: list[float], desc="Loss", xlabel="", size=(12,
     plt.show()
 
 
-def plot_3_generic(
+def plot_many_generic(
     x: list[int],
-    y_0: list[float],
-    y_1: list[float],
-    y_2: list[float],
-    desc_0="Loss",
-    desc_1="Loss",
-    desc_2="Loss",
+    y_arr: list[list[float]],
+    y_desc_arr=list[str],
     desc="",
     xlabel="",
     size=(12, 6),
 ):
     plt.figure(figsize=size)
-    plt.plot(x, y_0, label=desc_0)
-    plt.plot(x, y_1, label=desc_1)
-    plt.plot(x, y_2, label=desc_2)
+
+    for y, y_desc in zip(y_arr, y_desc_arr):
+        plt.plot(x, y, label=y_desc)
+
     plt.title(desc)
     plt.xlabel(xlabel)
     plt.ylabel(desc)

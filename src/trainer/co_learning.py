@@ -4,12 +4,10 @@ from typing import Optional
 from torch import Tensor, nn
 from torch.utils import data
 from statsmodels.stats.proportion import proportion_confint
-from torchmetrics import Accuracy, CohenKappa, F1Score
 
 from src.data.dataset_decorator import LabeledDatasetDecorator
 from src.model.democratic_model import DemocraticModel
 from src.trainer.base_trainer import BaseTrainer, TrainableModule
-from src.trainer.classification_trainer import ClassificationTrainer
 from src.trainer.model_support import ModelSupport
 from src.util.progress_bar import create_progress_bar
 from src.util.torch import dataloader_from_prtototype

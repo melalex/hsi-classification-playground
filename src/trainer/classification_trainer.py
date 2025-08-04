@@ -172,30 +172,38 @@ class ClassificationTrainer(BaseTrainer):
         model.to(self.device)
         model.eval()
 
-        all_preds = []
-        all_targets = []
-
         with torch.no_grad():
+            batch_count = len(dataloader)
+            acc_loss = 0
+
             for x, y_true in dataloader:
                 x = x.to(self.device)
                 y_true = y_true.to(self.device)
                 y_pred = model(x)
-                all_preds.append(y_pred)
-                all_targets.append(y_true)
 
-            y_pred_tensor = torch.cat(all_preds, dim=0)
-            y_true_tensor = torch.cat(all_targets, dim=0)
-            y_pred_classes = (
-                (torch.sigmoid(y_pred_tensor) > 0.5).int()
-                if len(y_pred_tensor.shape) == 1
-                else torch.argmax(y_pred_tensor, dim=1)
-            )
+                y_pred_classes = (
+                    (torch.sigmoid(y_pred) > 0.5).int()
+                    if len(y_pred.shape) == 1
+                    else torch.argmax(y_pred, dim=1)
+                )
 
-            f1 = self.f1(y_pred_classes, y_true_tensor).item()
-            acc_overall = self.overall_accuracy(y_pred_classes, y_true_tensor).item()
-            acc_avg = self.average_accuracy(y_pred_classes, y_true_tensor).item()
-            kappa_score = self.kappa(y_pred_classes, y_true_tensor).item()
-            loss = self.criterion(y_pred_tensor.float(), y_true_tensor).item()
+                self.f1.update(y_pred_classes, y_true)
+                self.overall_accuracy.update(y_pred_classes, y_true)
+                self.average_accuracy.update(y_pred_classes, y_true)
+                self.kappa.update(y_pred_classes, y_true)
+
+                acc_loss += self.criterion(y_pred.float(), y_true).item()
+
+            f1 = self.f1.compute().item()
+            acc_overall = self.overall_accuracy.compute().item()
+            acc_avg = self.average_accuracy.compute().item()
+            kappa_score = self.kappa.compute().item()
+            loss = acc_loss / batch_count
+
+            self.f1.reset()
+            self.overall_accuracy.reset()
+            self.average_accuracy.reset()
+            self.kappa.reset()
 
             return {
                 "eval_f1": f1,

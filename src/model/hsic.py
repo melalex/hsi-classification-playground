@@ -68,12 +68,31 @@ class HyperSpectralImageClassifier(L.LightningModule):
         loss = self.loss_fun(y_hat, y)
 
         prediction = self.pred_extractor(y_hat)
-        f1 = self.f1(prediction, y)
-        overall_accuracy = self.overall_accuracy(prediction, y)
-        average_accuracy = self.average_accuracy(prediction, y)
-        kappa = self.kappa(prediction, y)
+
+        self.f1.update(prediction, y)
+        self.overall_accuracy.update(prediction, y)
+        self.average_accuracy.update(prediction, y)
+        self.kappa.update(prediction, y)
 
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, on_step=False)
+
+        return {
+            "val_loss": loss,
+        }
+
+    def on_train_epoch_end(self):
+        self.train_metrics.append(
+            HyperSpectralImageClassifierMetrics(
+                loss=self.trainer.callback_metrics.get("loss")
+            )
+        )
+
+    def on_validation_epoch_end(self):
+        f1 = self.f1.compute()
+        overall_accuracy = self.overall_accuracy.compute()
+        average_accuracy = self.average_accuracy.compute()
+        kappa = self.kappa.compute()
+
         self.log("val_f1", f1, prog_bar=True, on_epoch=True, on_step=False)
         self.log(
             "val_overall_accuracy",
@@ -91,35 +110,27 @@ class HyperSpectralImageClassifier(L.LightningModule):
         )
         self.log("val_kappa", kappa, prog_bar=True, on_epoch=True, on_step=False)
 
+        self.val_metrics.append(
+            HyperSpectralImageClassifierMetrics(
+                loss=self.trainer.callback_metrics.get("val_loss"),
+                f1=f1,
+                overall_accuracy=overall_accuracy,
+                average_accuracy=average_accuracy,
+                kappa=kappa,
+            )
+        )
+
+        self.f1.reset()
+        self.overall_accuracy.reset()
+        self.average_accuracy.reset()
+        self.kappa.reset()
+
         return {
-            "val_loss": loss,
             "val_f1": f1,
             "val_overall_accuracy": overall_accuracy,
             "val_average_accuracy": average_accuracy,
             "val_kappa": kappa,
         }
-
-    def on_train_epoch_end(self):
-        self.train_metrics.append(
-            HyperSpectralImageClassifierMetrics(
-                loss=self.trainer.callback_metrics.get("loss")
-            )
-        )
-
-    def on_validation_epoch_end(self):
-        self.val_metrics.append(
-            HyperSpectralImageClassifierMetrics(
-                loss=self.trainer.callback_metrics.get("val_loss"),
-                f1=self.trainer.callback_metrics.get("val_f1"),
-                overall_accuracy=self.trainer.callback_metrics.get(
-                    "val_overall_accuracy"
-                ),
-                average_accuracy=self.trainer.callback_metrics.get(
-                    "val_average_accuracy"
-                ),
-                kappa=self.trainer.callback_metrics.get("val_kappa"),
-            )
-        )
 
     def configure_optimizers(self):
         optimizer = optim.Adam(

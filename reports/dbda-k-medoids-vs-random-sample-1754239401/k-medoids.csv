@@ -1,0 +1,1 @@
+0.8,"{'num_epochs': 30, 'learning_rate': 0.001, 't_initial': 30, 'weight_decay': 0, 'lr_min': 1e-05, 'warmup_lr_init': 1e-05, 'warmup_t': 3}",0.04377312213182449,0.9837859272956848,0.9637994170188904,0.9843044281005859,nan
