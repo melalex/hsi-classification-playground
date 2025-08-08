@@ -1,0 +1,2 @@
+id,params,val_loss,val_f1,val_overall_accuracy,val_average_accuracy,val_kappa
+18,"{'num_epochs': 3, 'learning_rate': 0.001, 't_initial': 3, 'weight_decay': 0, 'lr_min': 1e-05, 'warmup_lr_init': 1e-05, 'warmup_t': 1}",1.788804347702122e-11,0.9967194199562073,0.5,0.9978121519088745,0.0

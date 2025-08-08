@@ -23,51 +23,65 @@ class PatchLoss(nn.Module):
 
 
 class PULoss(nn.Module):
-    """wrapper of loss function for PU learning"""
+    def __init__(self, prior, loss_fn=None, gamma=1.0, beta=0.0, nnpu=True):
+        """
+        PU loss for binary classification.
 
-    def __init__(
-        self, prior, loss=(lambda x: torch.sigmoid(-x)), gamma=1, beta=0, nnPU=False
-    ):
-        super(PULoss, self).__init__()
-
-        if not 0 < prior < 1:
-            raise NotImplementedError("The class prior should be in (0, 1)")
-
+        Args:
+            prior (float): Class prior (P(Y=1)), must be in (0,1).
+            loss_fn (callable): Loss function, should be non-increasing (default: sigmoid(-x)).
+            gamma (float): Weight for non-negative risk correction.
+            beta (float): Bias correction threshold for non-negative risk.
+            nnpu (bool): Use non-negative PU learning if True, otherwise unbiased PU.
+        """
+        super().__init__()
+        if not (0 < prior < 1):
+            raise ValueError("The class prior should be in (0, 1)")
         self.prior = prior
         self.gamma = gamma
         self.beta = beta
-        self.loss_func = loss  # lambda x: (torch.tensor(1., device=x.device) - torch.sign(x)) / torch.tensor(2, device=x.device)
-        self.nnPU = nnPU
+        self.loss_fn = loss_fn if loss_fn is not None else (lambda x: torch.sigmoid(-x))
+        self.nnpu = nnpu
         self.positive = 1
         self.unlabeled = -1
-        self.min_count = 1
 
-    def forward(self, inp, target):
-        assert (
-            inp.shape == target.shape
-        ), f"prediction shape {inp.shape} must be equal target shape {target.shape}"
+    def forward(self, x, t):
+        """
+        Args:
+            x (Tensor): Logits (N,).
+            t (Tensor): Labels (N,), should contain only 1 (positive) and -1 (unlabeled).
+        Returns:
+            Tensor: PU loss (scalar).
+        """
+        t = t.view(-1)
+        x = x.view(-1)
 
-        if inp.is_cuda:
-            self.prior = self.prior.cuda()
+        positive = (t == self.positive).float()
+        unlabeled = (t == self.unlabeled).float()
 
-        positive, unlabeled = target == self.positive, target == self.unlabeled
-        positive, unlabeled = positive.type(torch.float), unlabeled.type(torch.float)
+        n_positive = max(positive.sum().item(), 1.0)
+        n_unlabeled = max(unlabeled.sum().item(), 1.0)
 
-        n_positive, n_unlabeled = torch.clamp(
-            torch.sum(positive), min=self.min_count
-        ), torch.clamp(torch.sum(unlabeled), min=self.min_count)
+        # PU loss components
+        y_positive = self.loss_fn(x)
+        y_unlabeled = self.loss_fn(-x)
 
-        y_positive = self.loss_func(inp) * positive
-        y_positive_inv = self.loss_func(-inp) * positive
-        y_unlabeled = self.loss_func(-inp) * unlabeled
-
-        positive_risk = self.prior * torch.sum(y_positive) / n_positive
+        positive_risk = self.prior * (positive * y_positive).sum() / n_positive
         negative_risk = (
-            -self.prior * torch.sum(y_positive_inv) / n_positive
-            + torch.sum(y_unlabeled) / n_unlabeled
-        )
+            (unlabeled * y_unlabeled) / n_unlabeled
+            - self.prior * (positive * y_unlabeled) / n_positive
+        ).sum()
 
-        if negative_risk < -self.beta and self.nnPU:
-            return -self.gamma * negative_risk
+        objective = positive_risk + negative_risk
 
-        return positive_risk + negative_risk
+        if self.nnpu:
+            if negative_risk.item() < -self.beta:
+                loss = positive_risk - self.beta
+                # gradient of negative risk is scaled when it’s too negative
+                loss += -self.gamma * negative_risk
+            else:
+                loss = objective
+        else:
+            loss = objective
+
+        return loss

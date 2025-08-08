@@ -1,0 +1,12 @@
+loss,f1,overall_accuracy,average_accuracy,kappa
+"tensor(0.0810, device='cuda:0')","tensor(0.1078, device='cuda:0')","tensor(0.5187, device='cuda:0')","tensor(0.1953, device='cuda:0')","tensor(0.0126, device='cuda:0')"
+"tensor(0.1327, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1388, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1163, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1069, device='cuda:0')","tensor(0.8631, device='cuda:0')","tensor(0.5672, device='cuda:0')","tensor(0.8989, device='cuda:0')","tensor(0.2153, device='cuda:0')"
+"tensor(0.0953, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1080, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.0985, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1051, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1047, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"
+"tensor(0.1056, device='cuda:0')","tensor(0.8285, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.8832, device='cuda:0')","tensor(0., device='cuda:0')"

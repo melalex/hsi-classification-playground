@@ -2,7 +2,7 @@ from abc import ABC
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import torch.utils.data as data
 import tqdm
@@ -19,7 +19,9 @@ class RepresentativeDataPointsSearchAdapter[M](ABC):
     def get_run_params(
         self,
     ) -> Sequence[
-        tuple[str, data.DataLoader, Optional[data.DataLoader], dict[str, float]]
+        Callable[
+            [], tuple[str, data.DataLoader, Optional[data.DataLoader], dict[str, float]]
+        ]
     ]:
         pass
 
@@ -69,7 +71,9 @@ class RepresentativeDataPointsSearch[M]:
         history = []
 
         with tqdm.tqdm(total=len(params_list)) as pb:
-            for id, dl, eval_dl, params in params_list:
+            for lazzy_call in params_list:
+                id, dl, eval_dl, params = lazzy_call()
+
                 model = self.adapter.init_model(params)
                 model_history = self.adapter.fit_model(model, dl, eval_dl, params)
                 score = self.adapter.score_model(model)

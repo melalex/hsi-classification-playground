@@ -654,6 +654,14 @@ def train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
 
     return x_train, y_train, x_test, y_test
 
+def bin_train_test_split_by_mask(target_class: int, x: np.ndarray, y: np.ndarray, mask: np.ndarray):
+    x_train = x[mask, :, :]
+    y_train = (y[mask] == target_class).astype(float)
+    x_test = x[~mask, :, :]
+    y_test = (y[~mask] == target_class).astype(float)
+
+    return x_train, y_train, x_test, y_test
+
 
 def pu_train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
     y_train = np.full(y.shape, -1)
@@ -668,12 +676,10 @@ def pu_bin_train_test_split_by_mask(
     target_class: int, x: np.ndarray, y: np.ndarray, mask: np.ndarray
 ):
     y_train = np.full(y.shape, -1)
-    y_train[mask] = y[mask]
-    y_train = (y_train == target_class).astype(int)
+    y_train[mask] = (y[mask] == target_class).astype(int)
 
     x_test = x[~mask, :, :]
-    y_test = y[~mask]
-    y_test = (y_test == target_class).astype(int)
+    y_test = (y[~mask] == target_class).astype(int)
 
     return x, y_train, x_test, y_test
 
