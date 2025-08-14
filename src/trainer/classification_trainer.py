@@ -145,29 +145,6 @@ class ClassificationTrainer(BaseTrainer):
 
         return result_x, result_y
 
-    def predict_labeled(
-        self, model: nn.Module, dataloader: DataLoader
-    ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
-        model.to(self.device)
-        model.eval()
-
-        all_x = []
-        all_y_true = []
-        all_y_pred = []
-
-        with torch.no_grad():
-            for x, y in dataloader:
-                x = x.to(self.device)
-                y = y.to(self.device)
-
-                y_pred = model(x)
-
-                all_x.append(x)
-                all_y_true.append(y)
-                all_y_pred.append(y_pred)
-
-        return all_x, all_y_true, all_y_pred
-
     def validate(self, model: nn.Module, dataloader: DataLoader) -> dict[str, float]:
         model.to(self.device)
         model.eval()

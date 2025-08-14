@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import Optional
 from torch import Tensor, nn
 import torch
@@ -10,22 +11,51 @@ from src.trainer.base_trainer import (
     TrainerFeedback,
     TrainerHistoryEntry,
 )
+from src.util.hsi import mask_hsi_batch
 
 
-class AutoEncoderTrainer(BaseTrainer):
+class Maksking(ABC):
+    def mask(x):
+        pass
 
-    def __init__(self, loss_fun, epochs, device, validate_every_n_steps=1):
+
+class HsiPatchMasking(Maksking):
+
+    def __init__(self, mask_ratio=0.75, mode="spatial", fill_value=0.0):
+        self.mask_ratio = mask_ratio
+        self.mode = mode
+        self.fill_value = fill_value
+
+    def mask(self, batch):
+        return mask_hsi_batch(
+            batch,
+            mask_ratio=self.mask_ratio,
+            mode=self.mode,
+            fill_value=self.fill_value,
+        )
+
+
+class MaskedAutoEncoderTrainer(BaseTrainer):
+
+    def __init__(
+        self,
+        loss_fun: nn.Module,
+        epochs: int,
+        masking: Maksking,
+        device,
+        validate_every_n_steps=1,
+    ):
         self.loss_fun = loss_fun
         self.epochs = epochs
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
+        self.masking = masking
 
     def fit(
         self,
         model: TrainableModule,
         train: DataLoader,
         eval: Optional[DataLoader] = None,
-        test_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
         history = []
         model = model.to(self.device)
@@ -39,12 +69,13 @@ class AutoEncoderTrainer(BaseTrainer):
 
                 for x, _ in train:
                     x = x.to(self.device)
+                    x_masked, mask = self.masking.mask(x)
 
                     optimizer.zero_grad()
 
-                    _, decoded = model(x)
+                    _, decoded = model(x_masked)
 
-                    loss = self.loss_fun(decoded, x)
+                    loss = self.loss_fun(decoded, x, mask)
 
                     loss.backward()
                     optimizer.step()
@@ -83,7 +114,7 @@ class AutoEncoderTrainer(BaseTrainer):
                 x = x.to(self.device)
 
                 _, decoded = model(x)
-                loss = self.loss_fun(decoded, x)
+                loss = self.loss_fun(decoded, x, torch.ones(x.shape, device=self.device))
 
                 total_loss += loss.item()
 

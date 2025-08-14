@@ -8,16 +8,16 @@ import multiprocessing as mp
 from abc import ABC
 from itertools import product
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 from src.util.list_ext import split
 
 
 class GridSearchAdapter[M](ABC):
 
-    def params_grid(self) -> dict[str, Sequence[float]]:
+    def params_grid(self) -> dict[str, Sequence[Any]]:
         pass
 
-    def init_model(self, params: dict[str, float]):
+    def init_model(self, params: dict[str, Any]):
         pass
 
     def fit_model(self, model: M):

@@ -28,6 +28,23 @@ class AutoEncoder(nn.Module):
         return encoded, decoded
 
 
+class AutoEncoderWithClassificationHead(nn.Module):
+
+    def __init__(self, encoder: nn.Module, decoder: nn.Module, cls_head: nn.Module):
+        super().__init__()
+
+        self.encoder = encoder
+        self.decoder = decoder
+        self.cls_head = cls_head
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        y_pred = self.cls_head(encoded)
+
+        return encoded, decoded, y_pred
+
+
 class SymmetricAutoEncoder(BaseAutoEncoder):
 
     def __init__(self, units: list[int], activation: str):

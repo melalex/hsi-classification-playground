@@ -60,13 +60,14 @@ def read_report_to_show(
     sort_by_metric: str = None,
     report_path=REPORTS_FOLDER / "runs",
     model_category: str = None,
+    ascending=False
 ):
     report = read_report(model_name, report_path)
 
     report.drop("trainer_state", axis=1, inplace=True)
 
     if sort_by_metric:
-        report = report.sort_values(by=sort_by_metric, ascending=False)
+        report = report.sort_values(by=sort_by_metric, ascending=ascending)
 
     if model_category:
         report = report[report["model_category"] == model_category]

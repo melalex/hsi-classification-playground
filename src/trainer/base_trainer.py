@@ -94,7 +94,7 @@ class BaseTrainer(ABC):
         train_dataloader: data.DataLoader,
         eval_dataloader: Optional[data.DataLoader] = None,
         test_dataloader: Optional[data.DataLoader] = None,
-    ) -> TrainerFeedback:
+    ) -> tuple[TrainerFeedback, TrainableModule]:
         pass
 
     def predict(
@@ -105,7 +105,25 @@ class BaseTrainer(ABC):
     def predict_labeled(
         self, model: nn.Module, dataloader: data.DataLoader
     ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
-        pass
+        model.to(self.device)
+        model.eval()
+
+        all_x = []
+        all_y_true = []
+        all_y_pred = []
+
+        with torch.no_grad():
+            for x, y in dataloader:
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                y_pred = model(x)
+
+                all_x.append(x)
+                all_y_true.append(y)
+                all_y_pred.append(y_pred)
+
+        return all_x, all_y_true, all_y_pred
 
     def validate(
         self, model: nn.Module, dataloader: data.DataLoader

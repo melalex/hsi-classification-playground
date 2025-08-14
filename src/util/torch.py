@@ -39,9 +39,26 @@ def save_model(
 ) -> Path:
     base_path.mkdir(parents=True, exist_ok=True)
 
-    save_path = base_path / f"{model_name}.bin"
+    save_path = base_path / f"{model_name}.pth"
 
-    torch.save(model.state_dict(), base_path / model_name)
+    torch.save(model, save_path)
+
+    return save_path
+
+def load_model(model_name: str, base_path: Path = MODELS_FOLDER):
+    save_path = base_path / f"{model_name}.pth"
+
+    return torch.load(save_path, weights_only=False)
+
+
+def save_state_dict_model(
+    model: nn.Module, model_name: str, base_path: Path = MODELS_FOLDER
+) -> Path:
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    save_path = base_path / f"{model_name}.pth"
+
+    torch.save(model.state_dict(), save_path)
 
     return save_path
 

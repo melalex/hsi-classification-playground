@@ -654,7 +654,10 @@ def train_test_split_by_mask(x: np.ndarray, y: np.ndarray, mask: np.ndarray):
 
     return x_train, y_train, x_test, y_test
 
-def bin_train_test_split_by_mask(target_class: int, x: np.ndarray, y: np.ndarray, mask: np.ndarray):
+
+def bin_train_test_split_by_mask(
+    target_class: int, x: np.ndarray, y: np.ndarray, mask: np.ndarray
+):
     x_train = x[mask, :, :]
     y_train = (y[mask] == target_class).astype(float)
     x_test = x[~mask, :, :]
@@ -724,3 +727,85 @@ def multi_to_bi_class_pu_ds(
         new_y_test[i] = i_y_test
 
     return new_x_train, new_y_train, x_test, new_y_test
+
+
+def mask_hsi_batch(batch, mask_ratio=0.75, mode="spatial", fill_value=0.0):
+    """
+    Mask a batch of hyperspectral image patches for MAE training.
+
+    Args:
+        batch (torch.Tensor): shape (B, C, H, W)
+                              C = spectral bands
+        mask_ratio (float): Fraction of elements (pixels or bands) to mask.
+        mode (str): "spatial", "spectral", or "both"
+        fill_value (float, str, or callable):
+            - float → constant fill value
+            - "mean" → fill with mean value of unmasked part (per sample)
+            - "noise" → fill with Gaussian noise (mean=0, std=1)
+            - callable → function that takes (batch, mask) and returns fill tensor
+
+    Returns:
+        masked_batch (torch.Tensor): batch with masked values replaced
+        mask (torch.Tensor): boolean mask of shape (B, C, H, W)
+    """
+    B, C, H, W = batch.shape
+    device = batch.device
+
+    if mode == "spatial":
+        num_mask = int(H * W * mask_ratio)
+        mask = torch.zeros((B, 1, H * W), dtype=torch.bool, device=device)
+        for i in range(B):
+            mask[i, 0, torch.randperm(H * W, device=device)[:num_mask]] = True
+        mask = mask.view(B, 1, H, W).expand(-1, C, -1, -1)
+
+    elif mode == "spectral":
+        num_mask = int(C * mask_ratio)
+        mask = torch.zeros((B, C), dtype=torch.bool, device=device)
+        for i in range(B):
+            mask[i, torch.randperm(C, device=device)[:num_mask]] = True
+        mask = mask.view(B, C, 1, 1).expand(-1, -1, H, W)
+
+    elif mode == "both":
+        # Spatial mask
+        num_mask_spatial = int(H * W * mask_ratio)
+        spatial_mask = torch.zeros((B, 1, H * W), dtype=torch.bool, device=device)
+        for i in range(B):
+            spatial_mask[
+                i, 0, torch.randperm(H * W, device=device)[:num_mask_spatial]
+            ] = True
+        spatial_mask = spatial_mask.view(B, 1, H, W).expand(-1, C, -1, -1)
+
+        # Spectral mask
+        num_mask_spectral = int(C * mask_ratio)
+        spectral_mask = torch.zeros((B, C), dtype=torch.bool, device=device)
+        for i in range(B):
+            spectral_mask[i, torch.randperm(C, device=device)[:num_mask_spectral]] = (
+                True
+            )
+        spectral_mask = spectral_mask.view(B, C, 1, 1).expand(-1, -1, H, W)
+
+        mask = spatial_mask | spectral_mask
+
+    else:
+        raise ValueError("mode must be 'spatial', 'spectral', or 'both'")
+
+    masked_batch = batch.clone()
+
+    # Determine fill values
+    if isinstance(fill_value, float):
+        masked_batch[mask] = fill_value
+    elif fill_value == "mean":
+        for i in range(B):
+            if (~mask[i]).any():
+                fill_val = batch[i][~mask[i]].mean()
+            else:
+                fill_val = 0.0
+            masked_batch[i][mask[i]] = fill_val
+    elif fill_value == "noise":
+        masked_batch[mask] = torch.randn_like(masked_batch[mask])
+    elif callable(fill_value):
+        masked_batch[mask] = fill_value(batch, mask)
+    else:
+        raise ValueError("Unsupported fill_value type.")
+
+    return masked_batch, mask
