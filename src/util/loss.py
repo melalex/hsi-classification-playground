@@ -177,14 +177,12 @@ class MaskedAutoencoderWithClassificationHeadLoss(nn.Module):
         self,
         autoencoder_loss: nn.Module,
         cls_loss: nn.Module,
-        autoencoder_loss_weight: float = 1.0,
         cls_loss_weight: float = 1.0,
     ):
         super().__init__()
 
         self.autoencoder_loss = autoencoder_loss
         self.cls_loss = cls_loss
-        self.autoencoder_loss_weight = autoencoder_loss_weight
         self.cls_loss_weight = cls_loss_weight
 
     def forward(self, recon, x, mask, y_pred, y_true):
@@ -194,8 +192,40 @@ class MaskedAutoencoderWithClassificationHeadLoss(nn.Module):
         return (
             autoencoder_loss,
             cls_loss,
-            (
-                self.autoencoder_loss_weight * autoencoder_loss
-                + self.cls_loss_weight * cls_loss
-            ),
+            (autoencoder_loss + self.cls_loss_weight * cls_loss),
         )
+
+
+def zero_one_loss(z):
+    # (1 - sign(z)) / 2
+    return (1 - torch.sign(z)) / 2
+
+
+def ramp_loss(z):
+    # max(0, min(1, (1 - z) / 2))
+    return torch.clamp((1 - z) / 2, min=0, max=1)
+
+
+def squared_loss(z):
+    # (z - 1)^2 / 4
+    return ((z - 1) ** 2) / 4
+
+
+def logistic_loss(z):
+    # ln(1 + exp(-z))
+    return F.softplus(-z)
+
+
+def hinge_loss(z):
+    # max(0, 1 - z)
+    return torch.clamp(1 - z, min=0)
+
+
+def double_hinge_loss(z):
+    # max(0, (1 - z) / 2, -z)
+    return torch.max(torch.zeros_like(z), torch.max((1 - z) / 2, -z))
+
+
+def sigmoid_loss(z):
+    # 1 / (1 + exp(z))
+    return torch.sigmoid(-z)

@@ -38,14 +38,16 @@ class BinMaePuSearchAdapter(GridSearchAdapter[BinMaePuPipeline]):
     def __init__(
         self,
         params: dict[str, Sequence[Any]],
-        train_dataloader: data.DataLoader,
-        eval_dataloader: data.DataLoader,
+        train_ds: data.Dataset,
+        eval_ds: data.Dataset,
+        batch_size: int,
         positive_prob: float,
         device: torch.device,
     ):
         self.params = params
-        self.train_dataloader = train_dataloader
-        self.eval_dataloader = eval_dataloader
+        self.train_ds = train_ds
+        self.eval_ds = eval_ds
+        self.batch_size = batch_size
         self.positive_prob = positive_prob
         self.device = device
 
@@ -96,7 +98,6 @@ class BinMaePuSearchAdapter(GridSearchAdapter[BinMaePuPipeline]):
                     alpha=params["loss_alpha"], beta=params["loss_beta"]
                 ),
                 cls_loss=pu_loss,
-                autoencoder_loss_weight=params["autoencoder_loss_weight"],
                 cls_loss_weight=params["cls_loss_weight"],
             ),
             num_classes=2,
@@ -104,7 +105,7 @@ class BinMaePuSearchAdapter(GridSearchAdapter[BinMaePuPipeline]):
             masking=HsiPatchMasking(
                 mask_ratio=params["mask_ratio"],
                 mode=params["mask_mode"],
-                fill_value=["fil_value"],
+                fill_value=params["fill_value"],
             ),
             device=self.device,
             extract_prediction=extract_prediction,
@@ -113,10 +114,21 @@ class BinMaePuSearchAdapter(GridSearchAdapter[BinMaePuPipeline]):
         return BinMaePuPipeline(trainer=trainer, model=model)
 
     def fit_model(self, model: BinMaePuPipeline):
+        train_dataloader = data.DataLoader(
+            self.train_ds,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+        eval_dataloader = data.DataLoader(
+            self.eval_ds,
+            batch_size=self.batch_size,
+            shuffle=False,
+        )
+
         feedback, _ = model.trainer.fit(
             model=model.model,
-            train_dataloader=self.train_dataloader,
-            eval_dataloader=self.eval_dataloader,
+            train_dataloader=train_dataloader,
+            eval_dataloader=eval_dataloader,
         )
         model.feedback = feedback
 

@@ -806,6 +806,6 @@ def mask_hsi_batch(batch, mask_ratio=0.75, mode="spatial", fill_value=0.0):
     elif callable(fill_value):
         masked_batch[mask] = fill_value(batch, mask)
     else:
-        raise ValueError("Unsupported fill_value type.")
+        raise ValueError(f"Unsupported fill_value type: {fill_value}")
 
     return masked_batch, mask

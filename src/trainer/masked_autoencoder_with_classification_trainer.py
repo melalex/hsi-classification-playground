@@ -4,7 +4,7 @@ from torch import Tensor, nn
 import torch
 from torchmetrics import Accuracy, CohenKappa, F1Score
 from tqdm.notebook import tqdm
-from torch.utils.data import DataLoader
+from torch.utils import data
 
 from src.trainer.base_trainer import (
     BaseTrainer,
@@ -51,8 +51,9 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
     def fit(
         self,
         model: TrainableModule,
-        train: DataLoader,
-        eval: Optional[DataLoader] = None,
+        train_dataloader: data.DataLoader,
+        eval_dataloader: Optional[data.DataLoader] = None,
+        test_dataloader: Optional[data.DataLoader] = None,
     ) -> TrainerFeedback:
         history = []
         model = model.to(self.device)
@@ -64,9 +65,9 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
                 model.train()
                 total_loss = 0
                 total_cls_loss = 0
-                batch_count = len(train)
+                batch_count = len(train_dataloader)
 
-                for x, y_true in train:
+                for x, y_true in train_dataloader:
                     x = x.to(self.device)
                     y_true = y_true.to(self.device)
 
@@ -93,8 +94,9 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
                 }
 
                 eval_metrics = (
-                    self.validate(model, eval)
-                    if eval and (epoch + 1) % self.validate_every_n_steps == 0
+                    self.validate(model, eval_dataloader)
+                    if eval_dataloader
+                    and (epoch + 1) % self.validate_every_n_steps == 0
                     else {}
                 )
 
@@ -112,7 +114,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
 
         return TrainerFeedback(history), self.model_storage.get_best()
 
-    def validate(self, model: nn.Module, loader: DataLoader) -> dict[str, float]:
+    def validate(self, model: nn.Module, loader: data.DataLoader) -> dict[str, float]:
         model.eval()
 
         total_loss = 0
@@ -156,7 +158,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
             }
 
     def predict(
-        self, model: nn.Module, dataloader: DataLoader
+        self, model: nn.Module, dataloader: data.DataLoader
     ) -> tuple[list[Tensor], list[Tensor]]:
         model.eval()
 

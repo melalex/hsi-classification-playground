@@ -61,6 +61,11 @@ class GridSearch[M]:
         keys = list(param_grid.keys())
         params_list = list(product(*param_grid.values()))
 
+        if self.num_workers == 1:
+            return run_split_multiprocessing_workaround(
+                self, 1, params_list, len(params_list), resume_split_from(1), keys
+            )
+
         with mp.Pool(processes=self.num_workers) as pool:
             param_splits = split(params_list, self.num_workers)
 
