@@ -196,6 +196,44 @@ class MaskedAutoencoderWithClassificationHeadLoss(nn.Module):
         )
 
 
+class CompositeBinClassificationLoss(nn.Module):
+
+    def __init__(self, loss_by_class: dict[int, nn.Module]):
+        super().__init__()
+        self.loss_by_class = nn.ModuleDict(
+            {str(k): v for k, v in loss_by_class.items()}
+        )
+
+    def forward(self, y_pred, y_true):
+        """
+        y_pred: [B, C] logits for each class
+        y_true: [B] true class indices (1..C)
+        """
+        total_loss = 0.0
+        for class_id, loss_fn in self.loss_by_class.items():
+            class_id = int(class_id)
+            class_idx = (
+                class_id - 1
+            )  # since your dict starts at 1, but preds are 0-based
+
+            # predictions for this class
+            pred = y_pred[:, class_idx]
+
+            # binary labels: 1 if this sample belongs to this class, else -1/0 depending on your loss
+            target = torch.where(
+                y_true == class_id,
+                torch.ones_like(y_true, dtype=torch.float),
+                -torch.ones_like(y_true, dtype=torch.float),
+            )
+
+            # call the loss function
+            class_loss = loss_fn(pred, target)
+
+            total_loss += class_loss
+
+        return total_loss
+
+
 def zero_one_loss(z):
     # (1 - sign(z)) / 2
     return (1 - torch.sign(z)) / 2

@@ -10,4 +10,5 @@ __pycache__
 /lightning_logs
 /cache
 /reports/grid_search
+/reports/tmp
 /checkpoints

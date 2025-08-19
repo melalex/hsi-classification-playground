@@ -39,6 +39,17 @@ class SimpleBinClassificationHead(nn.Module):
         return x.reshape(-1)
 
 
+class SimpleMultiClassificationHead(nn.Module):
+
+    def __init__(self, from_dim: int, num_classes: int):
+        super().__init__()
+
+        self.cls_head = nn.Linear(from_dim, num_classes)
+
+    def forward(self, x):
+        return self.cls_head(x)
+
+
 def crete_model_for_fine_tune(
     base_model_out_dim: int,
     num_classes: int,

@@ -1,3 +1,4 @@
+from typing import Callable
 import numpy as np
 import torch
 
@@ -312,6 +313,17 @@ def sample_from_segmentation_matrix_with_zeros(
 
 def read_fixed_labels_mask(name: str, folder: Path = RAW_DATA_FOLDER / "mask"):
     return read_fixed_labels_mask_from_path(folder / name)
+
+
+def read_composite_mask(
+    name: Callable[[int, int], str],
+    labels_by_class: dict[int, int],
+    folder: Path = RAW_DATA_FOLDER / "mask",
+):
+    mask_names = [name(clazz, count) for clazz, count in labels_by_class.items()]
+    masks =  [read_fixed_labels_mask(it,folder) for it in mask_names]
+
+    return np.bitwise_or.reduce(masks)
 
 
 def read_fixed_labels_mask_from_path(path: Path):
@@ -683,6 +695,18 @@ def pu_bin_train_test_split_by_mask(
 
     x_test = x[~mask, :, :]
     y_test = (y[~mask] == target_class).astype(int)
+
+    return x, y_train, x_test, y_test
+
+
+def pu_multiclass_train_test_split_by_mask(
+     x: np.ndarray, y: np.ndarray, mask: np.ndarray
+):
+    y_train = np.full(y.shape, -1)
+    y_train[mask] = y[mask]
+
+    x_test = x[~mask, :, :]
+    y_test = y[~mask]
 
     return x, y_train, x_test, y_test
 

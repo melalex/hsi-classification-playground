@@ -1,5 +1,0 @@
-loss,f1,overall_accuracy,average_accuracy,kappa
-"tensor(0., device='cuda:0')","tensor(0.7512, device='cuda:0')","tensor(0.3008, device='cuda:0')","tensor(0.6016, device='cuda:0')","tensor(0., device='cuda:0')"
-"tensor(2.4417e-05, device='cuda:0')","tensor(0.9984, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.9989, device='cuda:0')","tensor(0., device='cuda:0')"
-"tensor(1.9286e-22, device='cuda:0')","tensor(0.9984, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.9989, device='cuda:0')","tensor(0., device='cuda:0')"
-"tensor(7.1950e-22, device='cuda:0')","tensor(0.9984, device='cuda:0')","tensor(0.5000, device='cuda:0')","tensor(0.9989, device='cuda:0')","tensor(0., device='cuda:0')"

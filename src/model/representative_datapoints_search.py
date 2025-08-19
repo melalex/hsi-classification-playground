@@ -2,7 +2,7 @@ from abc import ABC
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 import torch.utils.data as data
 import tqdm
@@ -20,12 +20,12 @@ class RepresentativeDataPointsSearchAdapter[M](ABC):
         self,
     ) -> Sequence[
         Callable[
-            [], tuple[str, data.DataLoader, Optional[data.DataLoader], dict[str, float]]
+            [], tuple[str, data.DataLoader, Optional[data.DataLoader], dict[str, Any]]
         ]
     ]:
         pass
 
-    def init_model(self, params: dict[str, float]) -> M:
+    def init_model(self, params: dict[str, Any]) -> M:
         pass
 
     def fit_model(
@@ -33,7 +33,7 @@ class RepresentativeDataPointsSearchAdapter[M](ABC):
         model: M,
         loader: data.DataLoader,
         eval_loader: Optional[data.DataLoader],
-        params: dict[str, float],
+        params: dict[str, Any],
     ) -> list[dict[str, float]]:
         pass
 
@@ -43,7 +43,7 @@ class RepresentativeDataPointsSearchAdapter[M](ABC):
     def on_scored_model(
         self,
         id: str,
-        params: dict[str, float],
+        params: dict[str, Any],
         model: M,
         model_history: list[dict[str, float]],
         score: dict[str, float],
@@ -74,7 +74,7 @@ class RepresentativeDataPointsSearch[M]:
             for lazzy_call in params_list:
                 id, dl, eval_dl, params = lazzy_call()
 
-                model = self.adapter.init_model(params)
+                model = self.adapter.init_model(id, params)
                 model_history = self.adapter.fit_model(model, dl, eval_dl, params)
                 score = self.adapter.score_model(model)
 
