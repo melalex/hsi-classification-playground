@@ -14,13 +14,8 @@ from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import train_test_split
 
 from src.definitions import CACHE_FOLDER, RAW_DATA_FOLDER
-from src.model.autoencoder import (
-    AsymmetricPointWiseAutoEncoder,
-    SpatialAutoEncoder,
-    SymmetricPointWiseAutoEncoder,
-)
 from src.trainer.autoencoder_trainer import AutoEncoderTrainer
-from src.trainer.base_trainer import AdamOptimizedModule, TrainableModule
+from src.trainer.base_trainer import TrainableModule
 
 MAX_ITER = 10_000_000
 
@@ -36,9 +31,6 @@ class DimReductionType(Enum):
     FA = "FA"
     SVD = "SVD"
     NMF = "NMF"
-    SPARTIAL_AUTOENCODER = "SPARTIAL_AUTOENCODER"
-    SYMETRIC_POINTWISE_AUTOENCODER = "SYMETRIC_POINTWISE_AUTOENCODER"
-    ASYMETRIC_POINTWISE_AUTOENCODER = "ASYMETRIC_POINTWISE_AUTOENCODER"
     NOPE = "NOPE"
 
 
@@ -46,10 +38,7 @@ def reduce_hsi_dim(
     image: np.ndarray,
     out_dim: int,
     alg: DimReductionType,
-    device: torch.device,
     random_state: int = 42,
-    auto_encoder_epochs: int = 100,
-    auto_encoder_lr: float = 1e-3,
 ) -> np.array:
     _, _, c = image.shape
 
@@ -63,57 +52,6 @@ def reduce_hsi_dim(
         return reduce_depth_with_svd(image, out_dim, random_state)
     elif alg == DimReductionType.NMF:
         return reduce_depth_with_nmf(image, out_dim, random_state)
-    elif alg == DimReductionType.SPARTIAL_AUTOENCODER:
-        model = AdamOptimizedModule(
-            SpatialAutoEncoder(input_channels=c, embedding_size=out_dim),
-            lr=auto_encoder_lr,
-        )
-        return (
-            model,
-            out_dim,
-            reduce_depth_with_patched_autoencoder(
-                image=image,
-                patch_size=9,
-                model=model,
-                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
-                batch_size=64,
-            ),
-        )
-    elif alg == DimReductionType.SYMETRIC_POINTWISE_AUTOENCODER:
-        model = AdamOptimizedModule(
-            SymmetricPointWiseAutoEncoder(units=[c, 150, 100, out_dim]),
-            lr=auto_encoder_lr,
-        )
-        return (
-            model,
-            out_dim,
-            reduce_depth_with_patched_autoencoder(
-                image=image,
-                patch_size=9,
-                model=model,
-                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
-                batch_size=64,
-            ),
-        )
-    elif alg == DimReductionType.ASYMETRIC_POINTWISE_AUTOENCODER:
-        model = AdamOptimizedModule(
-            AsymmetricPointWiseAutoEncoder(
-                encoder_units_def=[c, 150, 100, out_dim],
-                decoder_units_def=[out_dim, c],
-            ),
-            lr=auto_encoder_lr,
-        )
-        return (
-            model,
-            out_dim,
-            reduce_depth_with_patched_autoencoder(
-                image=image,
-                patch_size=9,
-                model=model,
-                trainer=AutoEncoderTrainer(nn.MSELoss(), auto_encoder_epochs, device),
-                batch_size=64,
-            ),
-        )
 
 
 def preprocess_hsi(image: np.ndarray, alg: PreProcessType) -> tuple[object, np.ndarray]:

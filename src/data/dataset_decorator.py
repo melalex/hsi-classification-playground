@@ -1,3 +1,5 @@
+import random
+import numpy as np
 from torch import Tensor
 import torch
 import torch.utils.data as data
@@ -90,3 +92,39 @@ class ConstLabelDataset(data.Dataset):
     def __getitem__(self, idx):
         x = self.decorated[idx]
         return x, torch.tensor(self.label, device=x.device, dtype=torch.float32)
+
+
+class RandomFlipDatasetDecorator(data.Dataset):
+
+    def __init__(
+        self,
+        dataset: data.Dataset,
+        horizontal_flip_prob: float = 0.5,
+        vertical_flip_prob: float = 0.5,
+    ):
+        self.dataset = dataset
+        self.horizontal_flip_prob = horizontal_flip_prob
+        self.vertical_flip_prob = vertical_flip_prob
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        x, y = self.dataset[idx]
+
+        x = self.random_horizontal_flip(x)
+        x = self.random_vertical_flip(x)
+
+        return x, y
+
+    def random_horizontal_flip(self, x):
+        if random.random() < self.horizontal_flip_prob:
+            return torch.flip(x, dims=[-1])
+        else:
+            return x
+
+    def random_vertical_flip(self, x):
+        if random.random() < self.vertical_flip_prob:
+            return torch.flip(x, dims=[-2])
+        else:
+            return x

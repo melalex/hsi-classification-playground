@@ -11,28 +11,7 @@ from src.trainer.base_trainer import (
     TrainerFeedback,
     TrainerHistoryEntry,
 )
-from src.util.hsi import mask_hsi_batch
-
-
-class Maksking(ABC):
-    def mask(x):
-        pass
-
-
-class HsiPatchMasking(Maksking):
-
-    def __init__(self, mask_ratio=0.75, mode="spatial", fill_value=0.0):
-        self.mask_ratio = mask_ratio
-        self.mode = mode
-        self.fill_value = fill_value
-
-    def mask(self, batch):
-        return mask_hsi_batch(
-            batch,
-            mask_ratio=self.mask_ratio,
-            mode=self.mode,
-            fill_value=self.fill_value,
-        )
+from src.util.masking import Maksking
 
 
 class MaskedAutoEncoderTrainer(BaseTrainer):
@@ -114,7 +93,9 @@ class MaskedAutoEncoderTrainer(BaseTrainer):
                 x = x.to(self.device)
 
                 _, decoded = model(x)
-                loss = self.loss_fun(decoded, x, torch.ones(x.shape, device=self.device))
+                loss = self.loss_fun(
+                    decoded, x, torch.ones(x.shape, device=self.device)
+                )
 
                 total_loss += loss.item()
 

@@ -1,5 +1,7 @@
 from torch import nn
 
+from src.trainer.masked_autoencoder_trainer import Maksking
+
 ACTIVATIONS = {
     "relu": nn.ReLU(),
     "linear": nn.Identity(),
@@ -28,9 +30,14 @@ class AutoEncoder(nn.Module):
         return encoded, decoded
 
 
-class AutoEncoderWithClassificationHead(nn.Module):
+class MaskedAutoEncoderWithClassificationHead(nn.Module):
 
-    def __init__(self, encoder: nn.Module, decoder: nn.Module, cls_head: nn.Module):
+    def __init__(
+        self,
+        encoder: nn.Module,
+        decoder: nn.Module,
+        cls_head: nn.Module,
+    ):
         super().__init__()
 
         self.encoder = encoder
@@ -39,7 +46,8 @@ class AutoEncoderWithClassificationHead(nn.Module):
 
     def forward(self, x):
         encoded = self.encoder(x)
-        decoded = self.decoder(encoded)
+        # decoded = self.decoder(encoded)
+        decoded = None
         y_pred = self.cls_head(encoded)
 
         return encoded, decoded, y_pred

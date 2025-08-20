@@ -12,8 +12,8 @@ from src.trainer.base_trainer import (
     TrainerFeedback,
     TrainerHistoryEntry,
 )
-from src.trainer.masked_autoencoder_trainer import Maksking
 from src.trainer.model_storage import ModelStorage, NoopModelStorage
+from src.util.masking import Maksking
 
 
 class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
@@ -24,9 +24,9 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
         epochs: int,
         num_classes: int,
         masking: Maksking,
-        device,
+        device: torch.device,
         extract_prediction=lambda y_pred: torch.argmax(y_pred, dim=1),
-        validate_every_n_steps=1,
+        validate_every_n_steps: int = 1,
         model_storage: ModelStorage = NoopModelStorage(),
     ):
         self.loss_fun = loss_fun
@@ -75,7 +75,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
 
                     optimizer.zero_grad()
 
-                    _, decoded, y_pred = model(x_masked)
+                    _, decoded, y_pred, = model(x_masked)
 
                     _, cls_loss, loss = self.loss_fun(decoded, x, mask, y_pred, y_true)
 
