@@ -186,8 +186,7 @@ class MaskedAutoencoderWithClassificationHeadLoss(nn.Module):
         self.cls_loss_weight = cls_loss_weight
 
     def forward(self, recon, x, mask, y_pred, y_true):
-        # autoencoder_loss = self.autoencoder_loss(recon, x, mask)
-        autoencoder_loss = 0
+        autoencoder_loss = self.autoencoder_loss(recon, x, mask)
         cls_loss = self.cls_loss(y_pred, y_true)
 
         return (

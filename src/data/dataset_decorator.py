@@ -128,3 +128,19 @@ class RandomFlipDatasetDecorator(data.Dataset):
             return torch.flip(x, dims=[-2])
         else:
             return x
+
+
+class HsiMaeAdapterDatasetDecorator(data.Dataset):
+
+    def __init__(self, dataset: data.Dataset):
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        x, y = self.dataset[idx]
+
+        x = x.unsqueeze(0)
+
+        return x, y

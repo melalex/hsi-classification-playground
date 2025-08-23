@@ -12,6 +12,7 @@ from src.trainer.base_trainer import (
     TrainerFeedback,
     TrainerHistoryEntry,
 )
+from src.trainer.model_storage import ModelStorage, NoopModelStorage
 from src.util.progress_bar import create_progress_bar
 
 
@@ -23,16 +24,28 @@ class ClassificationTrainer(BaseTrainer):
         num_classes: int,
         criterion: nn.Module,
         device: torch.device,
+        extract_prediction=lambda y_pred: torch.argmax(y_pred, dim=1),
         record_history: bool = True,
         validate_every_n_steps: int = 1,
         dl_accumulation_steps: int = 1,
+        model_storage: ModelStorage = NoopModelStorage(),
     ):
+        self.params = {
+            "num_epochs": num_epochs,
+            "num_classes": num_classes,
+            "record_history": record_history,
+            "validate_every_n_steps": validate_every_n_steps,
+            "dl_accumulation_steps": dl_accumulation_steps,
+        }
+
         self.num_epochs = num_epochs
         self.record_history = record_history
         self.criterion = criterion.to(device)
         self.device = device
+        self.extract_prediction = extract_prediction
         self.validate_every_n_steps = validate_every_n_steps
         self.dl_accumulation_steps = dl_accumulation_steps
+        self.model_storage = model_storage
 
         self.f1 = F1Score(
             task="multiclass", num_classes=num_classes, average="weighted"
@@ -45,13 +58,16 @@ class ClassificationTrainer(BaseTrainer):
         ).to(device)
         self.kappa = CohenKappa(task="multiclass", num_classes=num_classes).to(device)
 
+    def get_params(self):
+        return self.params
+
     def fit(
         self,
         model: TrainableModule,
         train_dataloader: DataLoader,
         eval_dataloader: Optional[DataLoader] = None,
         test_dataloader: Optional[DataLoader] = None,
-    ) -> TrainerFeedback:
+    ) -> tuple[TrainerFeedback, TrainableModule]:
         model = model.to(self.device)
         optimizer = model.configure_optimizers()
         scheduler = model.configure_scheduler(optimizer)
@@ -106,6 +122,8 @@ class ClassificationTrainer(BaseTrainer):
                     else {}
                 )
 
+                self.model_storage.update(model, eval_metrics)
+
                 h_entry = TrainerHistoryEntry(train_metrics, eval_metrics)
 
                 if self.record_history:
@@ -123,7 +141,7 @@ class ClassificationTrainer(BaseTrainer):
                 eval_metrics = self.validate(model, test_dataloader)
                 pb.set_postfix(**(current_posfix | eval_metrics))
 
-        return TrainerFeedback(history)
+        return TrainerFeedback(history), self.model_storage.get_best()
 
     def predict(
         self, model: nn.Module, dataloader: DataLoader
@@ -158,11 +176,7 @@ class ClassificationTrainer(BaseTrainer):
                 y_true = y_true.to(self.device)
                 y_pred = model(x)
 
-                y_pred_classes = (
-                    (torch.sigmoid(y_pred) > 0.5).int()
-                    if len(y_pred.shape) == 1
-                    else torch.argmax(y_pred, dim=1)
-                )
+                y_pred_classes = self.extract_prediction(y_pred)
 
                 self.f1.update(y_pred_classes, y_true)
                 self.overall_accuracy.update(y_pred_classes, y_true)

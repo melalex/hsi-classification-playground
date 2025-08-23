@@ -334,6 +334,26 @@ class HSIMAE(nn.Module):
         **kwargs,
     ):
         super().__init__()
+
+        self.params = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_chans": in_chans,
+            "embed_dim": embed_dim,
+            "depth": depth,
+            "num_heads": num_heads,
+            "decoder_embed_dim": decoder_embed_dim,
+            "decoder_depth": decoder_depth,
+            "decoder_num_heads": decoder_num_heads,
+            "mlp_ratio": mlp_ratio,
+            "norm_pix_loss": norm_pix_loss,
+            "bands": bands,
+            "b_patch_size": b_patch_size,
+            "no_qkv_bias": no_qkv_bias,
+            "trunc_init": trunc_init,
+            "s_depth": s_depth,
+            **kwargs,
+        }
         self.dim = embed_dim
         self.dec_dim = decoder_embed_dim
         self.s_depth = s_depth
@@ -430,6 +450,9 @@ class HSIMAE(nn.Module):
 
         self.initialize_weights()
         print("model initialized")
+
+    def get_params(self):
+        return self.params
 
     def initialize_weights(self):
         pos_embed = get_3d_sincos_pos_embed(
@@ -682,9 +705,36 @@ class DualViT(nn.Module):
         decoder_depth=8,
         decoder_num_heads=16,
         norm_pix_loss=False,
+        skip_decoder=False,
         **kwargs,
     ):
         super().__init__()
+
+        self.params = {
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_chans": in_chans,
+            "embed_dim": embed_dim,
+            "depth": depth,
+            "s_depth": s_depth,
+            "num_heads": num_heads,
+            "mlp_ratio": mlp_ratio,
+            "bands": bands,
+            "b_patch_size": b_patch_size,
+            "num_class": num_class,
+            "no_qkv_bias": no_qkv_bias,
+            "trunc_init": trunc_init,
+            "drop_path": drop_path,
+            "decoder_embed_dim": decoder_embed_dim,
+            "decoder_depth": decoder_depth,
+            "decoder_num_heads": decoder_num_heads,
+            "norm_pix_loss": norm_pix_loss,
+            "skip_decoder": skip_decoder,
+            **kwargs,
+        }
+
+        self.skip_decoder = skip_decoder
+        self.num_class = num_class
         self.trunc_init = trunc_init
         self.dim = embed_dim
         self.dec_dim = decoder_embed_dim
@@ -788,6 +838,9 @@ class DualViT(nn.Module):
 
         self.initialize_weights()
         print("model initialized")
+
+    def get_params(self):
+        return self.params
 
     def initialize_weights(self):
         pos_embed = get_3d_sincos_pos_embed(
@@ -1013,29 +1066,35 @@ class DualViT(nn.Module):
             x = x.permute(0, 2, 1, 3).reshape(N, L, -1)
         x = x.mean(1)
         pred = self.cls_head(x)
+
+        if self.num_class == 1:
+            pred = pred.reshape(-1)
+
         return pred, x
 
-    def forward(self, imgs, imgs_u=None, mask_ratio=0.75):
+    def forward(self, imgs, mask_ratio=0.75):
         latent = self.forward_encoder(imgs)
         class_pred, latent = self.head(latent)
 
-        if imgs_u is not None:
-            imgs_all = torch.concat([imgs, imgs_u], dim=0)
-            latent_unmask, mask, ids_restore, ids_keep = self.forward_mask_encoder(
-                imgs_all, mask_ratio
-            )
-            pred_rec = self.forward_decoder(latent_unmask, ids_restore)
-            loss_rec = self.forward_loss(imgs_all, pred_rec, mask)
-
-            mask = mask.unsqueeze(2).repeat(1, 1, pred_rec.shape[2])
-            mask = self.unpatchify(mask)
-
-            if self.norm_pix_loss:
-                pred_rec = pred_rec * self.var + self.mean
-            pred_rec = self.unpatchify(pred_rec)
-            return loss_rec, pred_rec, mask, class_pred
-        else:
+        if self.skip_decoder:
             return class_pred
+
+        if not self.training:
+            return None, None, None, class_pred
+
+        latent_unmask, mask, ids_restore, ids_keep = self.forward_mask_encoder(
+            imgs, mask_ratio
+        )
+        pred_rec = self.forward_decoder(latent_unmask, ids_restore)
+        loss_rec = self.forward_loss(imgs, pred_rec, mask)
+
+        mask = mask.unsqueeze(2).repeat(1, 1, pred_rec.shape[2])
+        mask = self.unpatchify(mask)
+
+        if self.norm_pix_loss:
+            pred_rec = pred_rec * self.var + self.mean
+        pred_rec = self.unpatchify(pred_rec)
+        return loss_rec, pred_rec, mask, class_pred
 
 
 class HSIViT(nn.Module):

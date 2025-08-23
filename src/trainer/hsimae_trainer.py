@@ -1,10 +1,9 @@
-from abc import ABC
 from typing import Optional
 from torch import Tensor, nn
 import torch
 from torchmetrics import Accuracy, CohenKappa, F1Score
 from tqdm.notebook import tqdm
-from torch.utils import data
+from torch.utils.data import DataLoader
 
 from src.trainer.base_trainer import (
     BaseTrainer,
@@ -13,27 +12,130 @@ from src.trainer.base_trainer import (
     TrainerHistoryEntry,
 )
 from src.trainer.model_storage import ModelStorage, NoopModelStorage
-from src.util.masking import Maksking
 
 
-class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
+class HsiMaeTrainer(BaseTrainer):
+
+    def __init__(self, epochs, device, mask_ratio, validate_every_n_steps=1):
+        self.epochs = epochs
+        self.device = device
+        self.mask_ratio = mask_ratio
+        self.validate_every_n_steps = validate_every_n_steps
+
+    def fit(
+        self,
+        model: TrainableModule,
+        train: DataLoader,
+        eval: Optional[DataLoader] = None,
+        test_dataloader: Optional[DataLoader] = None,
+    ) -> TrainerFeedback:
+        history = []
+        model = model.to(self.device)
+        optimizer = model.configure_optimizers()
+        scheduler = model.configure_scheduler(optimizer)
+
+        with tqdm(total=self.epochs) as pb:
+            for epoch in range(self.epochs):
+                model.train()
+                total_loss = 0
+
+                for x, _ in train:
+                    x = x.to(self.device)
+
+                    optimizer.zero_grad()
+
+                    loss, _, _ = model(x, mask_ratio=self.mask_ratio)
+
+                    loss.backward()
+                    optimizer.step()
+
+                    total_loss += loss.item()
+
+                train_loss = total_loss / len(train)
+
+                train_metrics = {"train_loss": train_loss}
+
+                eval_metrics = (
+                    self.validate(model, eval)
+                    if eval and (epoch + 1) % self.validate_every_n_steps == 0
+                    else {}
+                )
+
+                h_entry = TrainerHistoryEntry(train_metrics, eval_metrics)
+
+                history.append(h_entry)
+
+                if scheduler:
+                    scheduler.step()
+
+                pb.set_postfix(**h_entry.as_postfix())
+                pb.update()
+
+        return TrainerFeedback(history)
+
+    def validate(self, model: nn.Module, loader: DataLoader) -> dict[str, float]:
+        model.eval()
+
+        total_loss = 0
+
+        with torch.no_grad():
+            for x, _ in loader:
+                x = x.to(self.device)
+
+                loss, _, _ = model(x, mask_ratio=self.mask_ratio)
+
+                total_loss += loss.item()
+
+        return {"eval_loss": total_loss / len(loader)}
+
+    def predict(
+        self, model: nn.Module, dataloader: DataLoader
+    ) -> tuple[list[Tensor], list[Tensor]]:
+        model.eval()
+
+        result_x = []
+        result_y = []
+
+        with torch.no_grad():
+            for x in dataloader:
+                x = x.to(self.device)
+
+                _, decoded = model(x)
+
+                result_x.append(x)
+                result_y.append(decoded)
+
+        return result_x, result_y
+
+
+class DualHsiMaeTrainer(BaseTrainer):
 
     def __init__(
         self,
         loss_fun: nn.Module,
         epochs: int,
         num_classes: int,
-        masking: Maksking,
+        rec_loss_weight: float,
+        mask_ratio: float,
         device: torch.device,
         extract_prediction=lambda y_pred: torch.argmax(y_pred, dim=1),
         validate_every_n_steps: int = 1,
         model_storage: ModelStorage = NoopModelStorage(),
     ):
+        self.params = {
+            "epochs": epochs,
+            "num_classes": num_classes,
+            "rec_loss_weight": rec_loss_weight,
+            "mask_ratio": mask_ratio,
+            "validate_every_n_steps": validate_every_n_steps,
+        }
+
         self.loss_fun = loss_fun
+        self.rec_loss_weight = rec_loss_weight
+        self.mask_ratio = mask_ratio
         self.epochs = epochs
         self.device = device
         self.validate_every_n_steps = validate_every_n_steps
-        self.masking = masking
         self.extract_prediction = extract_prediction
         self.model_storage = model_storage
 
@@ -48,12 +150,15 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
         ).to(device)
         self.kappa = CohenKappa(task="multiclass", num_classes=num_classes).to(device)
 
+    def get_params(self):
+        return self.params
+
     def fit(
         self,
         model: TrainableModule,
-        train_dataloader: data.DataLoader,
-        eval_dataloader: Optional[data.DataLoader] = None,
-        test_dataloader: Optional[data.DataLoader] = None,
+        train_dataloader: DataLoader,
+        eval_dataloader: Optional[DataLoader] = None,
+        test_dataloader: Optional[DataLoader] = None,
     ) -> TrainerFeedback:
         history = []
         model = model.to(self.device)
@@ -71,13 +176,12 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
                     x = x.to(self.device)
                     y_true = y_true.to(self.device)
 
-                    x_masked, mask = self.masking.mask(x)
-
                     optimizer.zero_grad()
 
-                    _, decoded, y_pred, = model(x_masked)
+                    loss_rec, _, _, y_pred = model(x, mask_ratio=self.mask_ratio)
 
-                    _, cls_loss, loss = self.loss_fun(decoded, x, mask, y_pred, y_true)
+                    cls_loss = self.loss_fun(y_pred, y_true)
+                    loss = self.rec_loss_weight * loss_rec + cls_loss
 
                     loss.backward()
                     optimizer.step()
@@ -114,7 +218,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
 
         return TrainerFeedback(history), self.model_storage.get_best()
 
-    def validate(self, model: nn.Module, loader: data.DataLoader) -> dict[str, float]:
+    def validate(self, model: nn.Module, loader: DataLoader) -> dict[str, float]:
         model.eval()
 
         total_loss = 0
@@ -124,10 +228,8 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
                 x = x.to(self.device)
                 y_true = y_true.to(self.device)
 
-                _, _, y_pred = model(x)
-                _, loss, _ = self.loss_fun(
-                    x, x, torch.ones(x.shape, device=self.device), y_pred, y_true
-                )
+                _, _, _, y_pred = model(x)
+                loss = self.loss_fun(y_pred, y_true)
 
                 y_pred_classes = self.extract_prediction(y_pred)
 
@@ -158,7 +260,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
             }
 
     def predict(
-        self, model: nn.Module, dataloader: data.DataLoader
+        self, model: nn.Module, dataloader: DataLoader
     ) -> tuple[list[Tensor], list[Tensor]]:
         model.eval()
 
@@ -169,7 +271,7 @@ class MaskedAutoEncoderWithClasificationTrainer(BaseTrainer):
             for x in dataloader:
                 x = x.to(self.device)
 
-                _, _, y_pred = model(x)
+                _, _, _, y_pred = model(x)
 
                 result_x.append(x)
                 result_y.append(y_pred)

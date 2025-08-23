@@ -8,6 +8,8 @@ from torchmetrics import CohenKappa
 from torchmetrics.classification import F1Score
 from torchmetrics.classification import Accuracy
 
+from src.trainer.base_trainer import NoneSchedulerProvider, SchedulerProvider
+
 
 @dataclass
 class HyperSpectralImageClassifierMetrics:
@@ -26,7 +28,7 @@ class HyperSpectralImageClassifier(L.LightningModule):
         num_classes: int,
         lr: float = 1e-3,
         weight_decay=0,
-        scheduler: Optional[Callable] = None,
+        scheduler: SchedulerProvider = NoneSchedulerProvider(),
         loss_fun: nn.Module = nn.CrossEntropyLoss(),
         pred_extractor: Callable = lambda y_hat: torch.argmax(y_hat, dim=1),
     ):
@@ -137,7 +139,7 @@ class HyperSpectralImageClassifier(L.LightningModule):
             self.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
         if self.scheduler:
-            scheduler = self.scheduler(optimizer)
+            scheduler = self.scheduler.provide(optimizer)
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {

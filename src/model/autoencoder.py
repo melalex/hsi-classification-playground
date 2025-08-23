@@ -46,8 +46,7 @@ class MaskedAutoEncoderWithClassificationHead(nn.Module):
 
     def forward(self, x):
         encoded = self.encoder(x)
-        # decoded = self.decoder(encoded)
-        decoded = None
+        decoded = self.decoder(encoded)
         y_pred = self.cls_head(encoded)
 
         return encoded, decoded, y_pred

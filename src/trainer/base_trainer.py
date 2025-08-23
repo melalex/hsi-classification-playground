@@ -5,6 +5,8 @@ import torch
 from torch.utils import data
 from torch import nn, Tensor, optim
 
+from src.util.scheduler import CosineLRSchedulerWrapper
+
 
 @dataclass
 class TrainerHistoryEntry:
@@ -35,6 +37,52 @@ class TrainableModule(nn.Module):
         pass
 
 
+class SchedulerProvider(ABC):
+
+    def provide(self, optimizer: optim.Optimizer):
+        pass
+
+    def get_params(self):
+        return {}
+
+
+class NoneSchedulerProvider(SchedulerProvider):
+
+    def provide(self, optimizer: optim.Optimizer):
+        return None
+
+
+class LrSchedulerProvider(SchedulerProvider):
+
+    def __init__(self, t_initial, lr_min, warmup_t, warmup_lr_init):
+        super().__init__()
+
+        self.params = {
+            "schduler_type": "CosineLRSchedulerWrapper",
+            "t_initial": t_initial,
+            "lr_min": lr_min,
+            "warmup_t": warmup_t,
+            "warmup_lr_init": warmup_lr_init,
+        }
+
+        self.t_initial = t_initial
+        self.lr_min = lr_min
+        self.warmup_t = warmup_t
+        self.warmup_lr_init = warmup_lr_init
+
+    def provide(self, optimizer):
+        return CosineLRSchedulerWrapper(
+            optimizer,
+            t_initial=self.t_initial,
+            lr_min=self.lr_min,
+            warmup_t=self.warmup_t,
+            warmup_lr_init=self.warmup_lr_init,
+        )
+
+    def get_params(self):
+        return self.params
+
+
 class AdamOptimizedModule(TrainableModule):
 
     def __init__(
@@ -42,8 +90,9 @@ class AdamOptimizedModule(TrainableModule):
         net: nn.Module,
         lr: float,
         weight_decay=0,
-        scheduler: Optional[Callable] = None,
+        scheduler: SchedulerProvider = NoneSchedulerProvider(),
         display_name: Optional[str] = None,
+        no_decay: Optional[list[str]] = None,
     ):
         super().__init__()
 
@@ -52,20 +101,44 @@ class AdamOptimizedModule(TrainableModule):
         self.weight_decay = weight_decay
         self.scheduler = scheduler
         self.display_name = display_name
+        self.no_decay = no_decay
 
-    def forward(self, x):
-        return self.net(x)
+    def forward(self, x, **kwargs):
+        return self.net(x, **kwargs)
 
     def configure_optimizers(self) -> optim.Optimizer:
-        return optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        if not self.no_decay:
+            return optim.AdamW(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            )
+        else:
+            optimizer_grouped_parameters = [
+                {
+                    "params": [
+                        p
+                        for n, p in self.named_parameters()
+                        if not any(nd in n for nd in self.no_decay)
+                    ],
+                    "weight_decay": self.weight_decay,
+                },
+                {
+                    "params": [
+                        p
+                        for n, p in self.named_parameters()
+                        if any(nd in n for nd in self.no_decay)
+                    ],
+                    "weight_decay": 0.0,
+                },
+            ]
+
+            return optim.AdamW(
+                optimizer_grouped_parameters, lr=self.lr, weight_decay=self.weight_decay
+            )
 
     def configure_scheduler(
         self, optimizer: optim.Optimizer
     ) -> Optional[optim.lr_scheduler.LRScheduler]:
-        if self.scheduler:
-            return self.scheduler(optimizer)
-
-        return None
+        return self.scheduler.provide(optimizer)
 
     def get_display_name(self):
         return self.display_name
@@ -74,7 +147,7 @@ class AdamOptimizedModule(TrainableModule):
         wrapper_params = {
             "learning_rate": self.lr,
             "weight_decay": self.weight_decay,
-            "scheduler": str(self.scheduler),
+            "scheduler": self.scheduler.get_params(),
         }
 
         net_params = (
@@ -87,6 +160,9 @@ class AdamOptimizedModule(TrainableModule):
 
 
 class BaseTrainer(ABC):
+
+    def get_params(self):
+        pass
 
     def fit(
         self,
